@@ -14,7 +14,6 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 import streamlit as st
 
 # --- CONFIGURACIÓN DE ZONA HORARIA ---
-# Cambia "America/Guayaquil" por la zona horaria correspondiente a tu país si es necesario
 ZONA_HORARIA = ZoneInfo("America/Guayaquil")
 
 # Configuración de página optimizada para celular
@@ -529,10 +528,10 @@ with tab_admin:
     admin_subtab1, admin_subtab2, admin_subtab3 = st.tabs([
         "📦 Gestión de Bodega",
         "👥 Gestor de Guardias y PINs",
-        "📅 Programación",
+        "📅 Programación de Turnos",
     ])
 
-    # --- GESTIÓN DE BODEGA (REABASTECER, DAR DE BAJA Y ELIMINAR) ---
+    # --- GESTIÓN DE BODEGA ---
     with admin_subtab1:
       st.subheader("➕ 1. Registrar o Reabastecer Producto")
       with st.form("form_alta_bodega", clear_on_submit=True):
@@ -556,7 +555,6 @@ with tab_admin:
               }
             guardar_json(ARCHIVO_BODEGA, st.session_state.bodega)
 
-            # Registrar movimiento de ingreso
             mov_admin = {
                 "jornada_id": "ADMIN",
                 "fecha_hora": obtener_fecha_hora(),
@@ -579,7 +577,6 @@ with tab_admin:
 
       st.divider()
 
-      # --- DAR DE BAJA DE STOCK (MERMA / DAÑO / PÉRDIDA) ---
       st.subheader("🔻 2. Dar de Baja Stock (Daño, Pérdida o Merma)")
       if st.session_state.bodega:
         with st.form("form_baja_bodega", clear_on_submit=True):
@@ -619,7 +616,6 @@ with tab_admin:
               st.session_state.bodega[prod_baja]["cantidad"] -= cant_baja
               guardar_json(ARCHIVO_BODEGA, st.session_state.bodega)
 
-              # Registrar movimiento de baja en historial
               mov_baja = {
                   "jornada_id": "ADMIN_BAJA",
                   "fecha_hora": obtener_fecha_hora(),
@@ -641,7 +637,6 @@ with tab_admin:
 
       st.divider()
 
-      # --- ELIMINAR PRODUCTO DEL CATÁLOGO ---
       st.subheader("🗑️ 3. Eliminar Producto Definitivamente del Catálogo")
       if st.session_state.bodega:
         prod_eliminar = st.selectbox(
@@ -663,7 +658,6 @@ with tab_admin:
 
       st.divider()
 
-      # --- VISTA PREVIA INVENTARIO ---
       st.subheader("📋 Inventario Actual de Bodega")
       if st.session_state.bodega:
         for prod, info in st.session_state.bodega.items():
@@ -763,98 +757,187 @@ with tab_admin:
       else:
         st.info("No hay guardias registrados.")
 
-    # --- PROGRAMACIÓN MENSUAL Y CARGA EXCEL ---
+    # --- PROGRAMACIÓN MENSUAL Y EDITAR JORNADAS ---
     with admin_subtab3:
-      st.subheader("📅 Programación de Turnos (Carga por Excel o Manual)")
+      st.subheader("📅 Gestión de Programación de Turnos")
       g_db = cargar_json(ARCHIVO_GUARDIAS, [])
 
       if g_db:
-        # --- OPCIÓN 1: SUBIR DESDE EXCEL ---
-        st.markdown("### 📤 Cargar desde archivo Excel")
-        archivo_excel = st.file_uploader(
-            "Selecciona un archivo Excel (.xlsx)", type=["xlsx", "xls"]
+        # Pestañas secundarias para Carga/Individual o Edición
+        p_tab1, p_tab2 = st.tabs(
+            ["📤 Cargar / Crear Programación", "✏️ Editar Programación Existente"]
         )
 
-        if archivo_excel is not None:
-          try:
-            df = pd.read_excel(archivo_excel)
+        with p_tab1:
+          st.markdown("### 📤 Opción A: Cargar desde archivo Excel")
+          archivo_excel = st.file_uploader(
+              "Selecciona un archivo Excel (.xlsx)", type=["xlsx", "xls"]
+          )
 
-            # Validar columnas requeridas
-            columnas_esperadas = {
-                "Guardia",
-                "Turno",
-                "Fecha Inicio",
-                "Fecha Fin",
-            }
-            if not columnas_esperadas.issubset(set(df.columns)):
-              st.error(
-                  "❌ El Excel debe contener exactamente las columnas:"
-                  f" {', '.join(columnas_esperadas)}"
-              )
-            else:
-              st.write("📋 **Vista previa de los datos a cargar:**")
-              st.dataframe(df)
+          if archivo_excel is not None:
+            try:
+              df = pd.read_excel(archivo_excel)
+              columnas_esperadas = {
+                  "Guardia",
+                  "Turno",
+                  "Fecha Inicio",
+                  "Fecha Fin",
+              }
 
-              modo_carga = st.radio(
-                  "Modo de carga:",
-                  [
-                      "Añadir a la programación existente",
-                      "Reemplazar toda la programación actual",
-                  ],
-              )
-
-              if st.button("🚀 Cargar Programación desde Excel"):
-                registros_nuevos = []
-                for _, row in df.iterrows():
-                  registros_nuevos.append({
-                      "guardia": str(row["Guardia"]).strip(),
-                      "turno": str(row["Turno"]).strip().title(),
-                      "fecha_inicio": pd.to_datetime(
-                          row["Fecha Inicio"]
-                      ).strftime("%Y-%m-%d"),
-                      "fecha_fin": pd.to_datetime(row["Fecha Fin"]).strftime(
-                          "%Y-%m-%d"
-                      ),
-                  })
-
-                if modo_carga == "Reemplazar toda la programación actual":
-                  p_db = registros_nuevos
-                else:
-                  p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
-                  p_db.extend(registros_nuevos)
-
-                guardar_json(ARCHIVO_PROGRAMACION, p_db)
-                st.success(
-                    f"✅ Se cargaron correctamente {len(registros_nuevos)}"
-                    " registros de programación."
+              if not columnas_esperadas.issubset(set(df.columns)):
+                st.error(
+                    "❌ El Excel debe contener las columnas: Guardia, Turno,"
+                    " Fecha Inicio, Fecha Fin"
                 )
+              else:
+                st.write("📋 **Vista previa:**")
+                st.dataframe(df)
+
+                modo_carga = st.radio(
+                    "Modo de carga:",
+                    [
+                        "Añadir a la programación existente",
+                        "Reemplazar toda la programación actual",
+                    ],
+                )
+
+                if st.button("🚀 Cargar Programación desde Excel"):
+                  registros_nuevos = []
+                  for _, row in df.iterrows():
+                    registros_nuevos.append({
+                        "guardia": str(row["Guardia"]).strip(),
+                        "turno": str(row["Turno"]).strip().title(),
+                        "fecha_inicio": pd.to_datetime(
+                            row["Fecha Inicio"]
+                        ).strftime("%Y-%m-%d"),
+                        "fecha_fin": pd.to_datetime(row["Fecha Fin"]).strftime(
+                            "%Y-%m-%d"
+                        ),
+                    })
+
+                  if modo_carga == "Reemplazar toda la programación actual":
+                    p_db = registros_nuevos
+                  else:
+                    p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
+                    p_db.extend(registros_nuevos)
+
+                  guardar_json(ARCHIVO_PROGRAMACION, p_db)
+                  st.success(
+                      f"✅ Se cargaron correctamente {len(registros_nuevos)}"
+                      " registros."
+                  )
+                  st.rerun()
+            except Exception as e:
+              st.error(f"❌ Error al procesar Excel: {e}")
+
+          st.divider()
+
+          st.markdown("### ✍️ Opción B: Registro Manual Individual")
+          with st.form("form_prog_m", clear_on_submit=True):
+            g_sel_prog = st.selectbox("Guardia", [g["nombre"] for g in g_db])
+            t_sel_prog = st.selectbox("Turno", ["Día", "Noche", "Descanso"])
+            fecha_local_hoy = datetime.now(ZONA_HORARIA).date()
+            f_i = st.date_input("Fecha Inicio", value=fecha_local_hoy)
+            f_f = st.date_input("Fecha Fin", value=fecha_local_hoy)
+
+            if st.form_submit_button("Guardar Programación"):
+              p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
+              p_db.append({
+                  "guardia": g_sel_prog,
+                  "turno": t_sel_prog,
+                  "fecha_inicio": f_i.strftime("%Y-%m-%d"),
+                  "fecha_fin": f_f.strftime("%Y-%m-%d"),
+              })
+              guardar_json(ARCHIVO_PROGRAMACION, p_db)
+              st.success("✅ Programación guardada.")
+              st.rerun()
+
+        # PESTAÑA PARA EDITAR PROGRAMACIÓN EXISTENTE
+        with p_tab2:
+          st.markdown("### ✏️ Modificar o Eliminar Turnos Programados")
+          progs_actuales = cargar_json(ARCHIVO_PROGRAMACION, [])
+
+          if not progs_actuales:
+            st.info("No hay turnos registrados en la programación actual.")
+          else:
+            opciones_prog = {}
+            for index, item in enumerate(progs_actuales):
+              etiqueta = (
+                  f"[{index + 1}] {item['guardia']} | {item['turno']} | Desde"
+                  f" {item['fecha_inicio']} hasta {item['fecha_fin']}"
+              )
+              opciones_prog[etiqueta] = index
+
+            prog_seleccionada_etiqueta = st.selectbox(
+                "Seleccione la programación que desea editar o eliminar:",
+                list(opciones_prog.keys()),
+            )
+            index_sel = opciones_prog[prog_seleccionada_etiqueta]
+            item_sel = progs_actuales[index_sel]
+
+            st.write("---")
+            st.markdown("**Formulario de Modificación:**")
+
+            with st.form("form_editar_programacion"):
+              # Extraer fechas para el date_input
+              try:
+                f_ini_val = datetime.strptime(
+                    item_sel["fecha_inicio"], "%Y-%m-%d"
+                ).date()
+                f_fin_val = datetime.strptime(
+                    item_sel["fecha_fin"], "%Y-%m-%d"
+                ).date()
+              except ValueError:
+                f_ini_val = datetime.now(ZONA_HORARIA).date()
+                f_fin_val = datetime.now(ZONA_HORARIA).date()
+
+              edit_guardia = st.selectbox(
+                  "Guardia asignado:",
+                  [g["nombre"] for g in g_db],
+                  index=(
+                      [g["nombre"] for g in g_db].index(item_sel["guardia"])
+                      if item_sel["guardia"] in [g["nombre"] for g in g_db]
+                      else 0
+                  ),
+              )
+              edit_turno = st.selectbox(
+                  "Turno:",
+                  ["Día", "Noche", "Descanso"],
+                  index=[
+                      "Día",
+                      "Noche",
+                      "Descanso",
+                  ].index(item_sel["turno"])
+                  if item_sel["turno"] in ["Día", "Noche", "Descanso"]
+                  else 0,
+              )
+              edit_f_inicio = st.date_input(
+                  "Nueva Fecha de Inicio:", value=f_ini_val
+              )
+              edit_f_fin = st.date_input("Nueva Fecha de Fin:", value=f_fin_val)
+
+              col_btn1, col_btn2 = st.columns(2)
+              btn_actualizar = st.form_submit_button("💾 Guardar Cambios")
+
+              if btn_actualizar:
+                progs_actuales[index_sel] = {
+                    "guardia": edit_guardia,
+                    "turno": edit_turno,
+                    "fecha_inicio": edit_f_inicio.strftime("%Y-%m-%d"),
+                    "fecha_fin": edit_f_fin.strftime("%Y-%m-%d"),
+                }
+                guardar_json(ARCHIVO_PROGRAMACION, progs_actuales)
+                st.success("✅ Programación actualizada correctamente.")
                 st.rerun()
 
-          except Exception as e:
-            st.error(f"❌ Error al procesar el archivo Excel: {e}")
+            if st.button(
+                "🗑️ Eliminar esta asignación individual", type="primary"
+            ):
+              progs_actuales.pop(index_sel)
+              guardar_json(ARCHIVO_PROGRAMACION, progs_actuales)
+              st.success("🗑️ Asignación eliminada correctamente.")
+              st.rerun()
 
-        st.divider()
-
-        # --- OPCIÓN 2: REGISTRO MANUAL UNICO ---
-        st.markdown("### ✍️ Registro Manual Individual")
-        with st.form("form_prog_m", clear_on_submit=True):
-          g_sel_prog = st.selectbox("Guardia", [g["nombre"] for g in g_db])
-          t_sel_prog = st.selectbox("Turno", ["Día", "Noche", "Descanso"])
-          fecha_local_hoy = datetime.now(ZONA_HORARIA).date()
-          f_i = st.date_input("Fecha Inicio", value=fecha_local_hoy)
-          f_f = st.date_input("Fecha Fin", value=fecha_local_hoy)
-
-          if st.form_submit_button("Guardar Programación Individual"):
-            p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
-            p_db.append({
-                "guardia": g_sel_prog,
-                "turno": t_sel_prog,
-                "fecha_inicio": f_i.strftime("%Y-%m-%d"),
-                "fecha_fin": f_f.strftime("%Y-%m-%d"),
-            })
-            guardar_json(ARCHIVO_PROGRAMACION, p_db)
-            st.success("✅ Programación guardada correctamente.")
-            st.rerun()
       else:
         st.warning(
             "⚠️ Primero debe registrar guardias en la pestaña **👥 Gestor de"
@@ -862,7 +945,7 @@ with tab_admin:
         )
 
       st.divider()
-      st.subheader("📅 Turnos y Descansos Programados Actualmente")
+      st.subheader("📅 Lista Completa de Turnos y Descansos Programados")
       progs = cargar_json(ARCHIVO_PROGRAMACION, [])
       if progs:
         for idx, p in enumerate(reversed(progs)):
@@ -873,10 +956,10 @@ with tab_admin:
           )
 
         if st.button(
-            "🗑️ Borrar Historial de Programación", type="secondary"
+            "🗑️ Borrar Todo el Historial de Programación", type="secondary"
         ):
           guardar_json(ARCHIVO_PROGRAMACION, [])
-          st.success("Historial de programación limpiado.")
+          st.success("Historial de programación limpiado por completo.")
           st.rerun()
       else:
         st.info("No hay programaciones registradas aún.")
