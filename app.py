@@ -4,6 +4,7 @@ import json
 import os
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 from reportlab.lib import colors
 
 # Importaciones para generar PDF
@@ -14,7 +15,6 @@ import streamlit as st
 
 # --- CONFIGURACIÓN DE ZONA HORARIA ---
 # Cambia "America/Guayaquil" por la zona horaria correspondiente a tu país si es necesario
-# Ejemplos: "America/Bogota", "America/Lima", "America/Mexico_City", "America/Santiago"
 ZONA_HORARIA = ZoneInfo("America/Guayaquil")
 
 # Configuración de página optimizada para celular
@@ -366,6 +366,8 @@ with tab_bodega:
 
   if not st.session_state.jornada_activa:
     st.info("⚠️ Debe **Iniciar Jornada** para registrar salidas de bodega.")
+  elif not st.session_state.bodega:
+    st.warning("⚠️ No hay productos disponibles en bodega.")
   else:
     with st.form("form_salida_guardia", clear_on_submit=True):
       item_seleccionado = st.selectbox(
@@ -482,7 +484,6 @@ with tab_reportes:
       ]
 
       st.markdown("---")
-      # BOTÓN GENERADOR Y DESCARGADOR DE PDF
       pdf_bytes = generar_pdf_jornada(j_sel, acts, movs)
 
       st.download_button(
@@ -526,14 +527,14 @@ with tab_admin:
     st.success("🔓 Acceso de Administrador Confirmado")
 
     admin_subtab1, admin_subtab2, admin_subtab3 = st.tabs([
-        "📦 Ingreso a Bodega",
+        "📦 Gestión de Bodega",
         "👥 Gestor de Guardias y PINs",
         "📅 Programación",
     ])
 
-    # --- BODEGA ---
+    # --- GESTIÓN DE BODEGA (REABASTECER, DAR DE BAJA Y ELIMINAR) ---
     with admin_subtab1:
-      st.subheader("➕ Registrar o Reabastecer Producto en Bodega")
+      st.subheader("➕ 1. Registrar o Reabastecer Producto")
       with st.form("form_alta_bodega", clear_on_submit=True):
         nombre_prod = st.text_input("Nombre del Producto")
         cant_prod = st.number_input(
@@ -541,7 +542,7 @@ with tab_admin:
         )
         unidad_prod = st.text_input("Unidad de Medida", value="uds")
 
-        btn_alta = st.form_submit_button("Guardar en Bodega")
+        btn_alta = st.form_submit_button("Guardar / Reabastecer en Bodega")
 
         if btn_alta:
           if nombre_prod.strip():
@@ -554,6 +555,20 @@ with tab_admin:
                   "unidad": unidad_prod,
               }
             guardar_json(ARCHIVO_BODEGA, st.session_state.bodega)
+
+            # Registrar movimiento de ingreso
+            mov_admin = {
+                "jornada_id": "ADMIN",
+                "fecha_hora": obtener_fecha_hora(),
+                "tipo": "Ingreso / Reabastecimiento",
+                "guardia": "Administrador",
+                "articulo": nom,
+                "cantidad": cant_prod,
+                "area_destino": "Bodega Central",
+                "detalle_destino": "Reabastecimiento por Administración",
+            }
+            agregar_registro(ARCHIVO_MOVIMIENTOS, mov_admin)
+
             st.success(
                 f"✅ Registradas {cant_prod} {unidad_prod} de **{nom}** en"
                 " bodega."
@@ -563,12 +578,101 @@ with tab_admin:
             st.error("❌ El nombre del producto es obligatorio.")
 
       st.divider()
-      st.subheader("📋 Inventario Actual de Bodega")
-      for prod, info in st.session_state.bodega.items():
-        st.write(
-            f"• **{prod}**: {info.get('cantidad', 0)}"
-            f" {info.get('unidad', 'uds')}"
+
+      # --- DAR DE BAJA DE STOCK (MERMA / DAÑO / PÉRDIDA) ---
+      st.subheader("🔻 2. Dar de Baja Stock (Daño, Pérdida o Merma)")
+      if st.session_state.bodega:
+        with st.form("form_baja_bodega", clear_on_submit=True):
+          prod_baja = st.selectbox(
+              "Seleccione Producto para dar de baja:",
+              list(st.session_state.bodega.keys()),
+              key="sel_prod_baja",
+          )
+          stock_actual = st.session_state.bodega[prod_baja]["cantidad"]
+          unit_actual = st.session_state.bodega[prod_baja]["unidad"]
+
+          st.caption(
+              f"Stock actual disponible: **{stock_actual} {unit_actual}**"
+          )
+
+          cant_baja = st.number_input(
+              "Cantidad a dar de baja",
+              min_value=1,
+              max_value=max(1, stock_actual),
+              step=1,
+          )
+          motivo_baja = st.text_input(
+              "Motivo de la baja (Ej. Deterioro, Pérdida, Caducidad)"
+          )
+
+          btn_baja = st.form_submit_button("Descontar Stock")
+
+          if btn_baja:
+            if cant_baja > stock_actual:
+              st.error("❌ La cantidad supera el stock actual disponible.")
+            elif not motivo_baja.strip():
+              st.error(
+                  "⚠️ Debe ingresar un motivo justificado para dar de baja el"
+                  " producto."
+              )
+            else:
+              st.session_state.bodega[prod_baja]["cantidad"] -= cant_baja
+              guardar_json(ARCHIVO_BODEGA, st.session_state.bodega)
+
+              # Registrar movimiento de baja en historial
+              mov_baja = {
+                  "jornada_id": "ADMIN_BAJA",
+                  "fecha_hora": obtener_fecha_hora(),
+                  "tipo": "Baja de Stock",
+                  "guardia": "Administrador",
+                  "articulo": prod_baja,
+                  "cantidad": cant_baja,
+                  "area_destino": "Baja / Descarte",
+                  "detalle_destino": f"Motivo: {motivo_baja.strip()}",
+              }
+              agregar_registro(ARCHIVO_MOVIMIENTOS, mov_baja)
+
+              st.success(
+                  f"✅ Se descontaron {cant_baja} {unit_actual} de **{prod_baja}**."
+              )
+              st.rerun()
+      else:
+        st.info("No hay productos en bodega.")
+
+      st.divider()
+
+      # --- ELIMINAR PRODUCTO DEL CATÁLOGO ---
+      st.subheader("🗑️ 3. Eliminar Producto Definitivamente del Catálogo")
+      if st.session_state.bodega:
+        prod_eliminar = st.selectbox(
+            "Seleccione Producto a eliminar del sistema:",
+            list(st.session_state.bodega.keys()),
+            key="sel_prod_eliminar",
         )
+
+        if st.button("🗑️ Eliminar Producto Definitivamente", type="primary"):
+          del st.session_state.bodega[prod_eliminar]
+          guardar_json(ARCHIVO_BODEGA, st.session_state.bodega)
+          st.success(
+              f"🗑️ Producto **{prod_eliminar}** eliminado del catálogo de"
+              " bodega."
+          )
+          st.rerun()
+      else:
+        st.info("No hay productos para eliminar.")
+
+      st.divider()
+
+      # --- VISTA PREVIA INVENTARIO ---
+      st.subheader("📋 Inventario Actual de Bodega")
+      if st.session_state.bodega:
+        for prod, info in st.session_state.bodega.items():
+          st.write(
+              f"• **{prod}**: {info.get('cantidad', 0)}"
+              f" {info.get('unidad', 'uds')}"
+          )
+      else:
+        st.info("El inventario está vacío.")
 
     # --- GESTOR DE GUARDIAS ---
     with admin_subtab2:
@@ -659,18 +763,88 @@ with tab_admin:
       else:
         st.info("No hay guardias registrados.")
 
-    # --- PROGRAMACIÓN MENSUAL ---
+    # --- PROGRAMACIÓN MENSUAL Y CARGA EXCEL ---
     with admin_subtab3:
-      st.subheader("Programación de Turnos por Rango de Fechas")
+      st.subheader("📅 Programación de Turnos (Carga por Excel o Manual)")
       g_db = cargar_json(ARCHIVO_GUARDIAS, [])
+
       if g_db:
+        # --- OPCIÓN 1: SUBIR DESDE EXCEL ---
+        st.markdown("### 📤 Cargar desde archivo Excel")
+        archivo_excel = st.file_uploader(
+            "Selecciona un archivo Excel (.xlsx)", type=["xlsx", "xls"]
+        )
+
+        if archivo_excel is not None:
+          try:
+            df = pd.read_excel(archivo_excel)
+
+            # Validar columnas requeridas
+            columnas_esperadas = {
+                "Guardia",
+                "Turno",
+                "Fecha Inicio",
+                "Fecha Fin",
+            }
+            if not columnas_esperadas.issubset(set(df.columns)):
+              st.error(
+                  "❌ El Excel debe contener exactamente las columnas:"
+                  f" {', '.join(columnas_esperadas)}"
+              )
+            else:
+              st.write("📋 **Vista previa de los datos a cargar:**")
+              st.dataframe(df)
+
+              modo_carga = st.radio(
+                  "Modo de carga:",
+                  [
+                      "Añadir a la programación existente",
+                      "Reemplazar toda la programación actual",
+                  ],
+              )
+
+              if st.button("🚀 Cargar Programación desde Excel"):
+                registros_nuevos = []
+                for _, row in df.iterrows():
+                  registros_nuevos.append({
+                      "guardia": str(row["Guardia"]).strip(),
+                      "turno": str(row["Turno"]).strip().title(),
+                      "fecha_inicio": pd.to_datetime(
+                          row["Fecha Inicio"]
+                      ).strftime("%Y-%m-%d"),
+                      "fecha_fin": pd.to_datetime(row["Fecha Fin"]).strftime(
+                          "%Y-%m-%d"
+                      ),
+                  })
+
+                if modo_carga == "Reemplazar toda la programación actual":
+                  p_db = registros_nuevos
+                else:
+                  p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
+                  p_db.extend(registros_nuevos)
+
+                guardar_json(ARCHIVO_PROGRAMACION, p_db)
+                st.success(
+                    f"✅ Se cargaron correctamente {len(registros_nuevos)}"
+                    " registros de programación."
+                )
+                st.rerun()
+
+          except Exception as e:
+            st.error(f"❌ Error al procesar el archivo Excel: {e}")
+
+        st.divider()
+
+        # --- OPCIÓN 2: REGISTRO MANUAL UNICO ---
+        st.markdown("### ✍️ Registro Manual Individual")
         with st.form("form_prog_m", clear_on_submit=True):
           g_sel_prog = st.selectbox("Guardia", [g["nombre"] for g in g_db])
           t_sel_prog = st.selectbox("Turno", ["Día", "Noche", "Descanso"])
           fecha_local_hoy = datetime.now(ZONA_HORARIA).date()
           f_i = st.date_input("Fecha Inicio", value=fecha_local_hoy)
           f_f = st.date_input("Fecha Fin", value=fecha_local_hoy)
-          if st.form_submit_button("Guardar Programación"):
+
+          if st.form_submit_button("Guardar Programación Individual"):
             p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
             p_db.append({
                 "guardia": g_sel_prog,
@@ -688,13 +862,14 @@ with tab_admin:
         )
 
       st.divider()
-      st.subheader("📅 Turnos Programados Actualmente")
+      st.subheader("📅 Turnos y Descansos Programados Actualmente")
       progs = cargar_json(ARCHIVO_PROGRAMACION, [])
       if progs:
         for idx, p in enumerate(reversed(progs)):
+          icono_turno = "🟢" if p["turno"] in ["Día", "Noche"] else "🟡"
           st.write(
-              f"• **{p['guardia']}** | Turno **{p['turno']}** | Desde:"
-              f" `{p['fecha_inicio']}` hasta `{p['fecha_fin']}`"
+              f"• {icono_turno} **{p['guardia']}** | Turno: **{p['turno']}** |"
+              f" Desde: `{p['fecha_inicio']}` hasta `{p['fecha_fin']}`"
           )
 
         if st.button(
