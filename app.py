@@ -757,94 +757,187 @@ with tab_admin:
       else:
         st.info("No hay guardias registrados.")
 
-    # --- PROGRAMACIÓN MENSUAL Y CARGA EXCEL ---
+    # --- PROGRAMACIÓN MENSUAL (CREAR, CARGAR Y EDITAR) ---
     with admin_subtab3:
-      st.subheader("📅 Programación de Turnos")
+      st.subheader("📅 Programación de Turnos y Descansos")
       g_db = cargar_json(ARCHIVO_GUARDIAS, [])
 
       if g_db:
-        st.markdown("### 📤 Cargar desde archivo Excel")
-        archivo_excel = st.file_uploader(
-            "Selecciona un archivo Excel (.xlsx)", type=["xlsx", "xls"]
+        sub_prog1, sub_prog2 = st.tabs(
+            ["✍️ Cargar / Crear Programación", "✏️ Editar o Eliminar Programación"]
         )
 
-        if archivo_excel is not None:
-          try:
-            df = pd.read_excel(archivo_excel)
-            columnas_esperadas = {
-                "Guardia",
-                "Turno",
-                "Fecha Inicio",
-                "Fecha Fin",
-            }
-            if not columnas_esperadas.issubset(set(df.columns)):
-              st.error(
-                  "❌ El Excel debe contener las columnas: Guardia, Turno,"
-                  " Fecha Inicio, Fecha Fin"
-              )
-            else:
-              st.write("📋 **Vista previa de los datos a cargar:**")
-              st.dataframe(df)
+        # SUB-PESTAÑA 1: CREAR / CARGAR PROGRAMACIÓN
+        with sub_prog1:
+          st.markdown("### 📤 Opción A: Cargar desde archivo Excel")
+          archivo_excel = st.file_uploader(
+              "Selecciona un archivo Excel (.xlsx)", type=["xlsx", "xls"]
+          )
 
-              modo_carga = st.radio(
-                  "Modo de carga:",
-                  [
-                      "Añadir a la programación existente",
-                      "Reemplazar toda la programación actual",
-                  ],
-              )
-
-              if st.button("🚀 Cargar Programación desde Excel"):
-                registros_nuevos = []
-                for _, row in df.iterrows():
-                  registros_nuevos.append({
-                      "guardia": str(row["Guardia"]).strip(),
-                      "turno": str(row["Turno"]).strip().title(),
-                      "fecha_inicio": pd.to_datetime(
-                          row["Fecha Inicio"]
-                      ).strftime("%Y-%m-%d"),
-                      "fecha_fin": pd.to_datetime(row["Fecha Fin"]).strftime(
-                          "%Y-%m-%d"
-                      ),
-                  })
-
-                if modo_carga == "Reemplazar toda la programación actual":
-                  p_db = registros_nuevos
-                else:
-                  p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
-                  p_db.extend(registros_nuevos)
-
-                guardar_json(ARCHIVO_PROGRAMACION, p_db)
-                st.success(
-                    f"✅ Se cargaron correctamente {len(registros_nuevos)}"
-                    " registros."
+          if archivo_excel is not None:
+            try:
+              df = pd.read_excel(archivo_excel)
+              columnas_esperadas = {
+                  "Guardia",
+                  "Turno",
+                  "Fecha Inicio",
+                  "Fecha Fin",
+              }
+              if not columnas_esperadas.issubset(set(df.columns)):
+                st.error(
+                    "❌ El Excel debe contener las columnas: Guardia, Turno,"
+                    " Fecha Inicio, Fecha Fin"
                 )
+              else:
+                st.write("📋 **Vista previa de los datos a cargar:**")
+                st.dataframe(df)
+
+                modo_carga = st.radio(
+                    "Modo de carga:",
+                    [
+                        "Añadir a la programación existente",
+                        "Reemplazar toda la programación actual",
+                    ],
+                )
+
+                if st.button("🚀 Cargar Programación desde Excel"):
+                  registros_nuevos = []
+                  for _, row in df.iterrows():
+                    registros_nuevos.append({
+                        "guardia": str(row["Guardia"]).strip(),
+                        "turno": str(row["Turno"]).strip().title(),
+                        "fecha_inicio": pd.to_datetime(
+                            row["Fecha Inicio"]
+                        ).strftime("%Y-%m-%d"),
+                        "fecha_fin": pd.to_datetime(row["Fecha Fin"]).strftime(
+                            "%Y-%m-%d"
+                        ),
+                    })
+
+                  if modo_carga == "Reemplazar toda la programación actual":
+                    p_db = registros_nuevos
+                  else:
+                    p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
+                    p_db.extend(registros_nuevos)
+
+                  guardar_json(ARCHIVO_PROGRAMACION, p_db)
+                  st.success(
+                      f"✅ Se cargaron correctamente {len(registros_nuevos)}"
+                      " registros."
+                  )
+                  st.rerun()
+
+            except Exception as e:
+              st.error(f"❌ Error al procesar Excel: {e}")
+
+          st.divider()
+
+          st.markdown("### ✍️ Opción B: Registro Manual Individual")
+          with st.form("form_prog_m", clear_on_submit=True):
+            g_sel_prog = st.selectbox("Guardia", [g["nombre"] for g in g_db])
+            t_sel_prog = st.selectbox("Turno", ["Día", "Noche", "Descanso"])
+            fecha_local_hoy = datetime.now(ZONA_HORARIA).date()
+            f_i = st.date_input("Fecha Inicio", value=fecha_local_hoy)
+            f_f = st.date_input("Fecha Fin", value=fecha_local_hoy)
+
+            if st.form_submit_button("Guardar Programación Individual"):
+              p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
+              p_db.append({
+                  "guardia": g_sel_prog,
+                  "turno": t_sel_prog,
+                  "fecha_inicio": f_i.strftime("%Y-%m-%d"),
+                  "fecha_fin": f_f.strftime("%Y-%m-%d"),
+              })
+              guardar_json(ARCHIVO_PROGRAMACION, p_db)
+              st.success("✅ Programación guardada correctamente.")
+              st.rerun()
+
+        # SUB-PESTAÑA 2: EDITAR O ELIMINAR PROGRAMACIÓN EXISTENTE
+        with sub_prog2:
+          st.markdown("### ✏️ Modificar Registro de Programación Existente")
+          progs = cargar_json(ARCHIVO_PROGRAMACION, [])
+
+          if not progs:
+            st.info("No hay turnos o descansos programados para editar.")
+          else:
+            # Crear diccionario para elegir qué registro editar
+            opciones_editar = {}
+            for idx, p in enumerate(progs):
+              texto_op = (
+                  f"[{idx+1}] {p['guardia']} | Turno: {p['turno']} | Desde:"
+                  f" {p['fecha_inicio']} hasta {p['fecha_fin']}"
+              )
+              opciones_editar[texto_op] = idx
+
+            sel_prog_txt = st.selectbox(
+                "Seleccione la programación que desea editar:",
+                list(opciones_editar.keys()),
+            )
+            idx_editar = opciones_editar[sel_prog_txt]
+            item_a_editar = progs[idx_editar]
+
+            with st.form("form_editar_prog"):
+              st.write("🔧 **Editar Datos de la Jornada Seleccionada:**")
+
+              # Buscar el índice del guardia en la lista
+              nombres_guardias = [g["nombre"] for g in g_db]
+              idx_g = (
+                  nombres_guardias.index(item_a_editar["guardia"])
+                  if item_a_editar["guardia"] in nombres_guardias
+                  else 0
+              )
+
+              edit_guardia = st.selectbox(
+                  "Guardia", nombres_guardias, index=idx_g
+              )
+
+              turnos_lista = ["Día", "Noche", "Descanso"]
+              idx_t = (
+                  turnos_lista.index(item_a_editar["turno"])
+                  if item_a_editar["turno"] in turnos_lista
+                  else 0
+              )
+              edit_turno = st.selectbox("Turno", turnos_lista, index=idx_t)
+
+              # Convertir fechas en texto a objeto datetime.date
+              try:
+                dt_i = datetime.strptime(
+                    item_a_editar["fecha_inicio"], "%Y-%m-%d"
+                ).date()
+                dt_f = datetime.strptime(
+                    item_a_editar["fecha_fin"], "%Y-%m-%d"
+                ).date()
+              except ValueError:
+                dt_i = datetime.now(ZONA_HORARIA).date()
+                dt_f = datetime.now(ZONA_HORARIA).date()
+
+              edit_f_i = st.date_input("Fecha Inicio", value=dt_i)
+              edit_f_f = st.date_input("Fecha Fin", value=dt_f)
+
+              btn_guardar_edit = st.form_submit_button(
+                  "💾 Guardar Modificación"
+              )
+
+              if btn_guardar_edit:
+                progs[idx_editar] = {
+                    "guardia": edit_guardia,
+                    "turno": edit_turno,
+                    "fecha_inicio": edit_f_i.strftime("%Y-%m-%d"),
+                    "fecha_fin": edit_f_f.strftime("%Y-%m-%d"),
+                }
+                guardar_json(ARCHIVO_PROGRAMACION, progs)
+                st.success("✅ Programación editada exitosamente.")
                 st.rerun()
 
-          except Exception as e:
-            st.error(f"❌ Error al procesar Excel: {e}")
+            st.divider()
+            if st.button(
+                "🗑️ Eliminar únicamente esta asignación", type="primary"
+            ):
+              progs.pop(idx_editar)
+              guardar_json(ARCHIVO_PROGRAMACION, progs)
+              st.success("🗑️ Asignación eliminada correctamente.")
+              st.rerun()
 
-        st.divider()
-
-        st.markdown("### ✍️ Registro Manual Individual")
-        with st.form("form_prog_m", clear_on_submit=True):
-          g_sel_prog = st.selectbox("Guardia", [g["nombre"] for g in g_db])
-          t_sel_prog = st.selectbox("Turno", ["Día", "Noche", "Descanso"])
-          fecha_local_hoy = datetime.now(ZONA_HORARIA).date()
-          f_i = st.date_input("Fecha Inicio", value=fecha_local_hoy)
-          f_f = st.date_input("Fecha Fin", value=fecha_local_hoy)
-
-          if st.form_submit_button("Guardar Programación Individual"):
-            p_db = cargar_json(ARCHIVO_PROGRAMACION, [])
-            p_db.append({
-                "guardia": g_sel_prog,
-                "turno": t_sel_prog,
-                "fecha_inicio": f_i.strftime("%Y-%m-%d"),
-                "fecha_fin": f_f.strftime("%Y-%m-%d"),
-            })
-            guardar_json(ARCHIVO_PROGRAMACION, p_db)
-            st.success("✅ Programación guardada correctamente.")
-            st.rerun()
       else:
         st.warning(
             "⚠️ Primero debe registrar guardias en la pestaña **👥 Gestor de"
@@ -852,7 +945,7 @@ with tab_admin:
         )
 
       st.divider()
-      st.subheader("📅 Turnos y Descansos Programados Actualmente")
+      st.subheader("📋 Lista Completa de Turnos y Descansos Programados")
       progs = cargar_json(ARCHIVO_PROGRAMACION, [])
 
       if progs:
@@ -879,7 +972,7 @@ with tab_admin:
             "🗑️ Borrar TODO el Historial de Programación", type="secondary"
         ):
           guardar_json(ARCHIVO_PROGRAMACION, [])
-          st.success("Historial de programación limpiado.")
+          st.success("Historial de programación limpiado por completo.")
           st.rerun()
       else:
         st.info("No hay programaciones registradas aún.")
