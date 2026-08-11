@@ -1,1 +1,584 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ FastFood POS Pro Web</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { green: '#10b981', hoverGreen: '#059669', dark: '#0f172a', card: '#1e293b' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans flex flex-col">
 
+    <!-- HEADER / BARRA SUPERIOR -->
+    <header id="app-header" class="hidden bg-slate-800 border-b border-slate-700 h-16 px-6 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <span class="text-2xl">⚡</span>
+            <h1 class="text-xl font-bold text-emerald-500">FastFood POS Pro</h1>
+        </div>
+        <div class="flex items-center space-x-6">
+            <span id="user-display" class="font-semibold text-slate-200"></span>
+            <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-lg font-bold text-sm transition">
+                Cerrar Sesión ➔
+            </button>
+        </div>
+    </header>
+
+    <!-- PANTALLA DE LOGIN -->
+    <div id="view-login" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            <div class="text-center mb-6">
+                <span class="text-5xl">⚡</span>
+                <h2 class="text-2xl font-bold text-emerald-500 mt-2">FastFood POS</h2>
+                <p class="text-slate-400 text-sm">Inicio de Sesión por Rol</p>
+            </div>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Usuario</label>
+                    <input id="login-user" type="text" required placeholder="ej. admin, mesero1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Contraseña</label>
+                    <input id="login-pass" type="password" required placeholder="••••••••" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold py-3 rounded-lg transition shadow-lg shadow-emerald-500/20">
+                    INGRESAR AL SISTEMA
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <main id="app-content" class="flex-1 p-6 hidden overflow-hidden">
+        
+        <!-- VISTA MESERO -->
+        <div id="view-mesero" class="hidden h-full grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-slate-800/50 border border-slate-700/60 rounded-2xl p-5 flex flex-col">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-200">🍔 Catálogo de Productos</h3>
+                <div id="mesero-catalogo" class="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto pr-2 flex-1"></div>
+            </div>
+
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-lg font-bold mb-4 text-slate-200">📋 Orden del Cliente</h3>
+                    <input id="mesero-cliente" type="text" placeholder="Nombre de Cliente / Mesa" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 mb-4 text-white focus:outline-none focus:border-emerald-500">
+                    <div id="mesero-carrito-list" class="space-y-2 max-h-[350px] overflow-y-auto pr-1"></div>
+                </div>
+
+                <div class="border-t border-slate-700 pt-4 mt-4">
+                    <div class="flex justify-between items-center text-xl font-bold mb-4">
+                        <span>TOTAL:</span>
+                        <span id="mesero-total" class="text-emerald-500">$0.00</span>
+                    </div>
+                    <button onclick="enviarPedidoMesero()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2">
+                        🚀 ENVIAR A COCINA Y CAJA
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISTA COCINA -->
+        <div id="view-cocina" class="hidden h-full flex flex-col">
+            <h3 class="text-xl font-bold text-orange-500 mb-4 flex items-center gap-2">🔥 Monitor de Cocina - Comandas Pendientes</h3>
+            <div id="cocina-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pr-2 flex-1"></div>
+        </div>
+
+        <!-- VISTA CAJA -->
+        <div id="view-caja" class="hidden h-full flex flex-col">
+            <!-- Barra Estado Caja -->
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-4 flex justify-between items-center">
+                <div id="caja-status-text" class="font-bold text-lg"></div>
+                <div id="caja-btn-container"></div>
+            </div>
+
+            <h3 class="text-xl font-bold text-sky-400 mb-4">💰 Panel de Cobros</h3>
+            <div id="caja-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pr-2 flex-1"></div>
+        </div>
+
+        <!-- VISTA ADMIN CON PESTAÑAS -->
+        <div id="view-admin" class="hidden h-full flex flex-col">
+            <div class="flex border-b border-slate-700 mb-4 space-x-2">
+                <button onclick="switchAdminTab('reportes')" id="tab-btn-reportes" class="px-5 py-2.5 font-bold rounded-t-xl bg-slate-800 border-t border-x border-slate-700 text-emerald-400">📊 Reportes</button>
+                <button onclick="switchAdminTab('personal')" id="tab-btn-personal" class="px-5 py-2.5 font-bold rounded-t-xl bg-slate-800/40 text-slate-400">👥 Personal</button>
+                <button onclick="switchAdminTab('menu')" id="tab-btn-menu" class="px-5 py-2.5 font-bold rounded-t-xl bg-slate-800/40 text-slate-400">🍔 Menú</button>
+            </div>
+
+            <!-- Tab Reportes -->
+            <div id="admin-tab-reportes" class="flex-1 overflow-y-auto space-y-6">
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 flex items-center gap-4">
+                    <span class="font-bold text-sm text-slate-300">📅 Filtrar por Fecha:</span>
+                    <select id="admin-filtro-fecha" onchange="cargarReportesAdmin()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white">
+                        <option value="Hoy">Hoy</option>
+                        <option value="Ayer">Ayer</option>
+                        <option value="Últimos 7 días">Últimos 7 días</option>
+                        <option value="Todos los Tiempos">Todos los Tiempos</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-slate-800 border border-emerald-500/30 rounded-xl p-5 text-center">
+                        <p class="text-slate-400 text-sm">💵 Ventas Cobradas</p>
+                        <p id="kpi-cobrado" class="text-3xl font-extrabold text-emerald-400 mt-1">$0.00</p>
+                    </div>
+                    <div class="bg-slate-800 border border-red-500/30 rounded-xl p-5 text-center">
+                        <p class="text-slate-400 text-sm">🚫 Ventas Anuladas</p>
+                        <p id="kpi-anulado" class="text-3xl font-extrabold text-red-400 mt-1">0 ($0.00)</p>
+                    </div>
+                    <div class="bg-slate-800 border border-sky-500/30 rounded-xl p-5 text-center">
+                        <p class="text-slate-400 text-sm">📦 Total Pedidos</p>
+                        <p id="kpi-pedidos" class="text-3xl font-extrabold text-sky-400 mt-1">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <h4 class="font-bold mb-3 text-slate-200">📋 Historial General de Órdenes</h4>
+                    <div id="admin-tabla-reportes" class="overflow-x-auto"></div>
+                </div>
+            </div>
+
+            <!-- Tab Personal -->
+            <div id="admin-tab-personal" class="hidden flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                    <h4 id="user-form-title" class="font-bold text-lg mb-4 text-slate-200">➕ Registrar / Editar Usuario</h4>
+                    <form onsubmit="guardarUsuario(event)" class="space-y-3">
+                        <input id="u-id" type="hidden">
+                        <input id="u-nombre" type="text" placeholder="Nombre Completo" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                        <input id="u-user" type="text" placeholder="Usuario Login" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                        <input id="u-clave" type="password" placeholder="Contraseña" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                        <select id="u-rol" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                            <option value="mesero">Mesero</option>
+                            <option value="cocina">Cocina</option>
+                            <option value="caja">Caja</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                        <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 font-bold py-2 rounded-lg text-slate-900">💾 GUARDAR</button>
+                    </form>
+                </div>
+                <div class="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-xl p-5 overflow-y-auto">
+                    <h4 class="font-bold text-lg mb-4">👥 Personal Registrado</h4>
+                    <div id="admin-tabla-usuarios"></div>
+                </div>
+            </div>
+
+            <!-- Tab Menú -->
+            <div id="admin-tab-menu" class="hidden flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                    <h4 class="font-bold text-lg mb-4 text-slate-200">➕ Registrar Nuevo Producto</h4>
+                    <form onsubmit="guardarProducto(event)" class="space-y-3">
+                        <input id="p-nombre" type="text" placeholder="Nombre Producto" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                        <input id="p-precio" type="number" step="0.01" placeholder="Precio (ej. 4.50)" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                        <input id="p-imagen" type="file" accept="image/*" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-400">
+                        <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 font-bold py-2.5 rounded-lg text-slate-900">💾 GUARDAR EN MENÚ</button>
+                    </form>
+                </div>
+                <div class="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-xl p-5 overflow-y-auto">
+                    <h4 class="font-bold text-lg mb-4">📋 Productos en el Menú</h4>
+                    <div id="admin-lista-menu" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- JS DE APLICACIÓN WEB -->
+    <script>
+        let currentUser = null;
+        let carrito = [];
+        let autoRefreshInterval = null;
+
+        // AUTH & INICIO
+        async function handleLogin(e) {
+            e.preventDefault();
+            const usuario = document.getElementById('login-user').value;
+            const clave = document.getElementById('login-pass').value;
+
+            const formData = new FormData();
+            formData.append('usuario', usuario);
+            formData.append('clave', clave);
+
+            try {
+                const res = await fetch('/api/login', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    currentUser = data;
+                    document.getElementById('view-login').classList.add('hidden');
+                    document.getElementById('app-header').classList.remove('hidden');
+                    document.getElementById('app-content').classList.remove('hidden');
+                    document.getElementById('user-display').innerText = `👤 ${data.nombre} (${data.rol.toUpperCase()})`;
+
+                    renderViewByRole(data.rol);
+                } else {
+                    alert(data.detail || "Credenciales incorrectas.");
+                }
+            } catch (err) {
+                alert("Error de conexión al servidor.");
+            }
+        }
+
+        function logout() {
+            clearInterval(autoRefreshInterval);
+            currentUser = null;
+            location.reload();
+        }
+
+        function renderViewByRole(rol) {
+            document.querySelectorAll('#app-content > div').forEach(div => div.classList.add('hidden'));
+
+            if (rol === 'mesero') {
+                document.getElementById('view-mesero').classList.remove('hidden');
+                cargarCatalogoMesero();
+            } else if (rol === 'cocina') {
+                document.getElementById('view-cocina').classList.remove('hidden');
+                cargarCocina();
+                autoRefreshInterval = setInterval(cargarCocina, 5000);
+            } else if (rol === 'caja') {
+                document.getElementById('view-caja').classList.remove('hidden');
+                cargarCaja();
+                autoRefreshInterval = setInterval(cargarCaja, 5000);
+            } else if (rol === 'admin') {
+                document.getElementById('view-admin').classList.remove('hidden');
+                cargarReportesAdmin();
+            }
+        }
+
+        // MESERO CONTROL
+        async function cargarCatalogoMesero() {
+            const res = await fetch('/api/productos');
+            const prods = await res.json();
+
+            const container = document.getElementById('mesero-catalogo');
+            container.innerHTML = prods.map(p => `
+                <div class="bg-slate-800 border border-slate-700/80 rounded-xl p-3 flex flex-col items-center justify-between text-center">
+                    ${p.imagen_path ? `<img src="${p.imagen_path}" class="w-16 h-16 object-cover rounded-lg mb-2">` : `<span class="text-4xl mb-2">🍔</span>`}
+                    <p class="font-bold text-sm text-slate-200">${p.nombre}</p>
+                    <p class="text-emerald-400 font-bold text-sm my-1">$${p.precio.toFixed(2)}</p>
+                    <button onclick="agregarAlCarrito('${p.nombre}', ${p.precio})" class="w-full bg-slate-700 hover:bg-emerald-500 hover:text-slate-900 font-bold py-1.5 text-xs rounded-lg transition">Agregar +</button>
+                </div>
+            `).join('');
+        }
+
+        function agregarAlCarrito(nombre, precio) {
+            carrito.push({ nombre, precio });
+            renderCarritoUI();
+        }
+
+        function quitarDelCarrito(index) {
+            carrito.splice(index, 1);
+            renderCarritoUI();
+        }
+
+        function renderCarritoUI() {
+            const list = document.getElementById('mesero-carrito-list');
+            let total = 0;
+
+            list.innerHTML = carrito.map((item, idx) => {
+                total += item.precio;
+                return `
+                    <div class="bg-slate-900 p-2 rounded-lg flex justify-between items-center text-sm border border-slate-700/50">
+                        <span>${item.nombre}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-emerald-400 font-bold">$${item.precio.toFixed(2)}</span>
+                            <button onclick="quitarDelCarrito(${idx})" class="text-red-400 font-bold hover:text-red-300">✕</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('mesero-total').innerText = `$${total.toFixed(2)}`;
+        }
+
+        async function enviarPedidoMesero() {
+            const cliente = document.getElementById('mesero-cliente').value.trim();
+            if (!cliente || carrito.length === 0) return alert("Ingresa el cliente y selecciona productos.");
+
+            await fetch('/api/pedidos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cliente, items: carrito, mesero: currentUser.nombre })
+            });
+
+            carrito = [];
+            document.getElementById('mesero-cliente').value = '';
+            renderCarritoUI();
+            alert("¡Orden enviada a cocina y caja!");
+        }
+
+        // COCINA CONTROL
+        async function cargarCocina() {
+            const res = await fetch('/api/pedidos');
+            const pedidos = await res.json();
+            const pendientes = pedidos.filter(p => p.estado === 'pendiente');
+
+            const container = document.getElementById('cocina-grid');
+            container.innerHTML = pendientes.map(p => `
+                <div class="bg-slate-800 border-2 border-orange-500/80 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-orange-400">Orden #${p.id} - ${p.cliente}</h4>
+                            <span class="text-xs text-slate-400">${p.fecha_hora.substring(11, 16)}</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-3">Atendido: ${p.mesero}</p>
+                        <div class="bg-slate-900 rounded-lg p-3 space-y-1 mb-4">
+                            ${p.items.map(i => `<p class="text-sm">• ${i.nombre}</p>`).join('')}
+                        </div>
+                    </div>
+                    <button onclick="marcarListoCocina(${p.id})" class="w-full bg-orange-500 hover:bg-orange-600 font-bold py-2 rounded-lg text-slate-900">✔ MARCAR LISTO</button>
+                </div>
+            `).join('');
+        }
+
+        async function marcarListoCocina(id) {
+            await fetch(`/api/pedidos/${id}/estado`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estado: 'preparado' })
+            });
+            cargarCocina();
+        }
+
+        // CAJA CONTROL
+        async function cargarCaja() {
+            const resEstado = await fetch(`/api/caja/estado?cajero=${encodeURIComponent(currentUser.nombre)}`);
+            const estadoCaja = await resEstado.json();
+
+            const statusText = document.getElementById('caja-status-text');
+            const btnContainer = document.getElementById('caja-btn-container');
+
+            if (estadoCaja.abierta) {
+                statusText.innerHTML = `<span class="text-emerald-400">🟢 CAJA ABIERTA (Base: $${estadoCaja.base.toFixed(2)})</span>`;
+                btnContainer.innerHTML = `<button onclick="cerrarCajaModal(${estadoCaja.id})" class="bg-red-500 hover:bg-red-600 px-4 py-1.5 rounded-lg text-sm font-bold">🔒 CERRAR CAJA</button>`;
+            } else {
+                statusText.innerHTML = `<span class="text-red-400">⚠️ CAJA CERRADA</span>`;
+                btnContainer.innerHTML = `<button onclick="abrirCajaModal()" class="bg-emerald-500 hover:bg-emerald-600 px-4 py-1.5 rounded-lg text-sm font-bold text-slate-900">🔓 ABRIR CAJA</button>`;
+            }
+
+            const resPedidos = await fetch('/api/pedidos');
+            const pedidos = await resPedidos.json();
+            const activos = pedidos.filter(p => p.estado !== 'cobrado' && p.estado !== 'anulado');
+
+            const grid = document.getElementById('caja-grid');
+            grid.innerHTML = activos.map(p => `
+                <div class="bg-slate-800 border border-sky-500/50 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <h4 class="font-bold text-sky-400">Orden #${p.id} - ${p.cliente}</h4>
+                            <span class="text-xs text-slate-400">${p.fecha_hora.substring(11, 16)}</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Mesero: ${p.mesero}</p>
+                        <p class="text-xs font-bold my-2 ${p.estado === 'preparado' ? 'text-emerald-400' : 'text-yellow-400'}">
+                            ${p.estado === 'preparado' ? '¡LISTO PARA ENTREGAR!' : 'En preparación'}
+                        </p>
+                        <div class="text-2xl font-extrabold text-emerald-400 text-center my-2">$${p.total.toFixed(2)}</div>
+                    </div>
+                    <div class="space-y-2">
+                        <input id="cobro-monto-${p.id}" type="number" step="0.01" placeholder="Efectivo ($${p.total.toFixed(2)})" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm">
+                        <button onclick="cobrarOrden(${p.id}, ${p.total})" class="w-full bg-sky-500 hover:bg-sky-600 text-slate-900 font-bold py-2 rounded-lg">💵 COBRAR</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function abrirCajaModal() {
+            const monto = prompt("Ingresa el monto base en caja ($):", "50.00");
+            if (monto) {
+                await fetch('/api/caja/abrir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cajero: currentUser.nombre, monto })
+                });
+                cargarCaja();
+            }
+        }
+
+        async function cerrarCajaModal(cajaId) {
+            if (confirm("¿Confirmar arqueo y cierre de caja?")) {
+                const res = await fetch('/api/caja/cerrar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ caja_id: cajaId })
+                });
+                const data = await res.json();
+                alert(`📊 RESUMEN CIERRE:\n\n• Base Inicial: $${data.base.toFixed(2)}\n• Ventas: $${data.ventas.toFixed(2)}\n• TOTAL ARQUEO: $${data.esperado.toFixed(2)}`);
+                cargarCaja();
+            }
+        }
+
+        async function cobrarOrden(id, total) {
+            const input = document.getElementById(`cobro-monto-${id}`);
+            const pago = parseFloat(input.value) || total;
+
+            if (pago < total) return alert("El pago recibido es insuficiente.");
+
+            await fetch(`/api/pedidos/${id}/estado`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ estado: 'cobrado' })
+            });
+
+            alert(`Cobro realizado:\nTotal: $${total.toFixed(2)}\nEntregado: $${pago.toFixed(2)}\nCambio: $${(pago - total).toFixed(2)}`);
+            cargarCaja();
+        }
+
+        // ADMIN CONTROL
+        function switchAdminTab(tab) {
+            ['reportes', 'personal', 'menu'].forEach(t => {
+                document.getElementById(`admin-tab-${t}`).classList.add('hidden');
+                document.getElementById(`tab-btn-${t}`).className = "px-5 py-2.5 font-bold rounded-t-xl bg-slate-800/40 text-slate-400";
+            });
+            document.getElementById(`admin-tab-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-btn-${tab}`).className = "px-5 py-2.5 font-bold rounded-t-xl bg-slate-800 border-t border-x border-slate-700 text-emerald-400";
+
+            if (tab === 'reportes') cargarReportesAdmin();
+            if (tab === 'personal') cargarUsuariosAdmin();
+            if (tab === 'menu') cargarMenuAdmin();
+        }
+
+        async function cargarReportesAdmin() {
+            const filtro = document.getElementById('admin-filtro-fecha').value;
+            const res = await fetch(`/api/pedidos?filtro_fecha=${encodeURIComponent(filtro)}`);
+            const pedidos = await res.json();
+
+            let cobrado = 0, anuladosCant = 0, anuladosMonto = 0;
+            pedidos.forEach(p => {
+                if (p.estado === 'cobrado') cobrado += p.total;
+                if (p.estado === 'anulado') { anuladosCant++; anuladosMonto += p.total; }
+            });
+
+            document.getElementById('kpi-cobrado').innerText = `$${cobrado.toFixed(2)}`;
+            document.getElementById('kpi-anulado').innerText = `${anuladosCant} ($${anuladosMonto.toFixed(2)})`;
+            document.getElementById('kpi-pedidos').innerText = pedidos.length;
+
+            const tabla = document.getElementById('admin-tabla-reportes');
+            tabla.innerHTML = `
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900 text-slate-400">
+                        <tr><th class="p-2">ID</th><th>Fecha</th><th>Mesero</th><th>Cliente</th><th>Total</th><th>Estado</th><th>Acción</th></tr>
+                    </thead>
+                    <tbody>
+                        ${pedidos.map(p => `
+                            <tr class="border-b border-slate-700/50">
+                                <td class="p-2">#${p.id}</td>
+                                <td>${p.fecha_hora}</td>
+                                <td>${p.mesero}</td>
+                                <td>${p.cliente}</td>
+                                <td class="font-bold text-emerald-400">$${p.total.toFixed(2)}</td>
+                                <td class="font-bold ${p.estado === 'cobrado' ? 'text-emerald-400' : p.estado === 'anulado' ? 'text-red-400' : 'text-sky-400'}">${p.estado.toUpperCase()}</td>
+                                <td>${p.estado !== 'anulado' ? `<button onclick="anularOrden(${p.id})" class="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-2 py-1 rounded text-xs font-bold">🚫 Anular</button>` : ''}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        async function anularOrden(id) {
+            if (confirm(`¿Anular la orden #${id}?`)) {
+                await fetch(`/api/pedidos/${id}/estado`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ estado: 'anulado' })
+                });
+                cargarReportesAdmin();
+            }
+        }
+
+        async function cargarUsuariosAdmin() {
+            const res = await fetch('/api/usuarios');
+            const users = await res.json();
+            const container = document.getElementById('admin-tabla-usuarios');
+            container.innerHTML = users.map(u => `
+                <div class="bg-slate-900 p-3 rounded-lg mb-2 flex justify-between items-center border border-slate-700/50">
+                    <div>
+                        <p class="font-bold">${u.nombre} <span class="text-xs text-slate-400">(${u.usuario})</span></p>
+                        <span class="text-xs font-bold uppercase ${u.rol === 'admin' ? 'text-purple-400' : u.rol === 'mesero' ? 'text-emerald-400' : 'text-sky-400'}">${u.rol}</span>
+                    </div>
+                    <button onclick="eliminarUsuario(${u.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">Eliminar</button>
+                </div>
+            `).join('');
+        }
+
+        async function guardarUsuario(e) {
+            e.preventDefault();
+            const id = document.getElementById('u-id').value;
+            const nombre = document.getElementById('u-nombre').value;
+            const usuario = document.getElementById('u-user').value;
+            const clave = document.getElementById('u-clave').value;
+            const rol = document.getElementById('u-rol').value;
+
+            await fetch('/api/usuarios', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id || null, nombre, usuario, clave, rol })
+            });
+
+            document.getElementById('u-id').value = '';
+            document.getElementById('u-nombre').value = '';
+            document.getElementById('u-user').value = '';
+            document.getElementById('u-clave').value = '';
+            cargarUsuariosAdmin();
+        }
+
+        async function eliminarUsuario(id) {
+            if (confirm("¿Eliminar usuario?")) {
+                await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+                cargarUsuariosAdmin();
+            }
+        }
+
+        async function cargarMenuAdmin() {
+            const res = await fetch('/api/productos');
+            const prods = await res.json();
+            const container = document.getElementById('admin-lista-menu');
+            container.innerHTML = prods.map(p => `
+                <div class="bg-slate-900 p-3 rounded-lg flex justify-between items-center border border-slate-700/50">
+                    <div class="flex items-center gap-3">
+                        ${p.imagen_path ? `<img src="${p.imagen_path}" class="w-10 h-10 object-cover rounded">` : '🍔'}
+                        <div>
+                            <p class="font-bold text-sm">${p.nombre}</p>
+                            <p class="text-emerald-400 text-xs font-bold">$${p.precio.toFixed(2)}</p>
+                        </div>
+                    </div>
+                    <button onclick="eliminarProducto(${p.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">Eliminar</button>
+                </div>
+            `).join('');
+        }
+
+        async function guardarProducto(e) {
+            e.preventDefault();
+            const nombre = document.getElementById('p-nombre').value;
+            const precio = document.getElementById('p-precio').value;
+            const imagen = document.getElementById('p-imagen').files[0];
+
+            const formData = new FormData();
+            formData.append('nombre', nombre);
+            formData.append('precio', precio);
+            if (imagen) formData.append('imagen', imagen);
+
+            await fetch('/api/productos', { method: 'POST', body: formData });
+
+            document.getElementById('p-nombre').value = '';
+            document.getElementById('p-precio').value = '';
+            document.getElementById('p-imagen').value = '';
+            cargarMenuAdmin();
+        }
+
+        async function eliminarProducto(id) {
+            if (confirm("¿Eliminar este producto?")) {
+                await fetch(`/api/productos/${id}`, { method: 'DELETE' });
+                cargarMenuAdmin();
+            }
+        }
+    </script>
+</body>
+</html> 
