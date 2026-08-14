@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta
 import json
 import os
 import shutil
 import sqlite3
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="FastFood POS Pro Web")
 
+# Directorios de estáticos e imágenes
 os.makedirs("imagenes", exist_ok=True)
 app.mount("/imagenes", StaticFiles(directory="imagenes"), name="imagenes")
 
@@ -24,13 +25,13 @@ def get_db():
 
 
 # ==========================================
-# INICIALIZACIÓN Y MIGRACIÓN DE LA BASE DE DATOS
+# INICIALIZACIÓN Y MIGRACIÓN DE BASE DE DATOS
 # ==========================================
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1. Usuarios
+    # 1. Tabla de Usuarios
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +55,7 @@ def init_db():
             usuarios_base,
         )
 
-    # 2. Categorías / Secciones
+    # 2. Tabla de Categorías / Secciones
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS categorias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +68,7 @@ def init_db():
         cats_base = [("Hamburguesas",), ("Bebidas",), ("Acompañamientos",), ("Postres",)]
         cursor.executemany("INSERT INTO categorias (nombre) VALUES (?)", cats_base)
 
-    # 3. Productos
+    # 3. Tabla de Productos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS productos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +80,7 @@ def init_db():
         )
     """)
 
-    # 4. Pedidos
+    # 4. Tabla de Pedidos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS pedidos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +95,7 @@ def init_db():
         )
     """)
 
-    # Migraciones en pedidos si existía la BD previa
+    # Migraciones en pedidos
     try:
         cursor.execute("ALTER TABLE pedidos ADD COLUMN metodo_pago TEXT DEFAULT 'efectivo'")
     except sqlite3.OperationalError:
@@ -105,7 +106,7 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
-    # 5. Tabla para Datos de Facturación
+    # 5. Tabla de Facturas (Datos fiscales)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS facturas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,7 +121,7 @@ def init_db():
         )
     """)
 
-    # 6. Cajas
+    # 6. Tabla de Cajas
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cajas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,6 +137,7 @@ def init_db():
         )
     """)
 
+    # Migraciones en cajas
     try:
         cursor.execute("ALTER TABLE cajas ADD COLUMN ventas_transferencia_loja REAL DEFAULT 0.0")
         cursor.execute("ALTER TABLE cajas ADD COLUMN ventas_transferencia_pichincha REAL DEFAULT 0.0")
@@ -150,7 +152,7 @@ init_db()
 
 
 # ==========================================
-# RUTAS DE AUTENTICACIÓN Y VISTA
+# RUTAS DE AUTENTICACIÓN Y VISTA PRINCIPAL
 # ==========================================
 @app.get("/", response_class=FileResponse)
 def index():
@@ -195,7 +197,7 @@ def listar_categorias():
 def crear_categoria(data: dict):
     nombre = data.get("nombre")
     if not nombre:
-        raise HTTPException(status_code=400, detail="Nombre requerido")
+        raise HTTPException(status_code=400, detail="Nombre de categoría requerido")
 
     conn = get_db()
     cursor = conn.cursor()
@@ -279,7 +281,7 @@ def eliminar_producto(prod_id: int):
 @app.post("/api/pedidos")
 def crear_pedido(data: dict):
     cliente = data.get("cliente")
-    items = data.get("items")
+    items = data.get("items")  # Formato sugerido: [{"nombre": "x", "precio": 1.0, "nota": "sin salsa"}]
     mesero = data.get("mesero")
 
     if not cliente or not items:
@@ -349,23 +351,20 @@ def cambiar_estado_pedido(pedido_id: int, data: dict):
     return {"success": True}
 
 
-# COBRO CON MÉTODOS DE PAGO Y FACTURA
 @app.put("/api/pedidos/{pedido_id}/cobrar")
 def cobrar_pedido(pedido_id: int, data: dict):
-    metodo_pago = data.get("metodo_pago", "efectivo")
+    metodo_pago = data.get("metodo_pago", "efectivo")  # 'efectivo', 'transferencia_loja', 'transferencia_pichincha'
     requiere_factura = 1 if data.get("requiere_factura") else 0
     datos_factura = data.get("datos_factura", {})
 
     conn = get_db()
     cursor = conn.cursor()
 
-    # Actualizar pedido
     cursor.execute(
         "UPDATE pedidos SET estado = 'cobrado', metodo_pago = ?, requiere_factura = ? WHERE id = ?",
         (metodo_pago, requiere_factura, pedido_id),
     )
 
-    # Si se solicita factura, registrar datos fiscales
     if requiere_factura:
         ruc_cedula = datos_factura.get("ruc_cedula")
         razon_social = datos_factura.get("razon_social")
@@ -374,7 +373,7 @@ def cobrar_pedido(pedido_id: int, data: dict):
         if not ruc_cedula or not razon_social or not email:
             conn.rollback()
             conn.close()
-            raise HTTPException(status_code=400, detail="Faltan datos obligatorios para la factura (Cédula/RUC, Nombre, Email)")
+            raise HTTPException(status_code=400, detail="Faltan datos requeridos para la factura (Cédula/RUC, Nombre, Email)")
 
         fecha_emision = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute(
@@ -397,7 +396,6 @@ def cobrar_pedido(pedido_id: int, data: dict):
     return {"success": True, "metodo_pago": metodo_pago, "facturado": bool(requiere_factura)}
 
 
-# Obtener factura emitida para un pedido
 @app.get("/api/pedidos/{pedido_id}/factura")
 def obtener_factura(pedido_id: int):
     conn = get_db()
@@ -411,10 +409,42 @@ def obtener_factura(pedido_id: int):
     return dict(res)
 
 
+@app.post("/api/pedidos/{pedido_id}/adicional")
+def agregar_item_adicional(pedido_id: int, data: dict):
+    prod_id = data.get("producto_id")
+    nota_especial = data.get("nota", "")
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT nombre, precio FROM productos WHERE id = ?", (prod_id,))
+    producto = cursor.fetchone()
+
+    cursor.execute("SELECT items, total FROM pedidos WHERE id = ?", (pedido_id,))
+    pedido = cursor.fetchone()
+
+    if producto and pedido:
+        items = json.loads(pedido["items"])
+        items.append({
+            "nombre": producto["nombre"],
+            "precio": producto["precio"],
+            "nota": nota_especial,
+        })
+        nuevo_total = pedido["total"] + producto["precio"]
+
+        cursor.execute(
+            "UPDATE pedidos SET items = ?, total = ? WHERE id = ?",
+            (json.dumps(items), nuevo_total, pedido_id),
+        )
+        conn.commit()
+
+    conn.close()
+    return {"success": True}
+
+
 # ==========================================
 # RUTAS DE RESUMEN DE VENTAS Y CAJA
 # ==========================================
-# RESUMEN EN TIEMPO REAL (Para cajero, admin o multiusuario)
 @app.get("/api/caja/resumen-ventas")
 def resumen_ventas_tiempo_real(cajero: Optional[str] = None):
     conn = get_db()
@@ -432,21 +462,18 @@ def resumen_ventas_tiempo_real(cajero: Optional[str] = None):
         if caja:
             base_monto = caja["monto_apertura"]
 
-    # Ventas en Efectivo
     cursor.execute(
         "SELECT SUM(total) FROM pedidos WHERE estado='cobrado' AND (metodo_pago='efectivo' OR metodo_pago IS NULL) AND fecha_hora >= ?",
         (hoy_inicio,),
     )
     ventas_efectivo = cursor.fetchone()[0] or 0.0
 
-    # Ventas Banco de Loja
     cursor.execute(
         "SELECT SUM(total) FROM pedidos WHERE estado='cobrado' AND metodo_pago='transferencia_loja' AND fecha_hora >= ?",
         (hoy_inicio,),
     )
     ventas_loja = cursor.fetchone()[0] or 0.0
 
-    # Ventas Banco Pichincha
     cursor.execute(
         "SELECT SUM(total) FROM pedidos WHERE estado='cobrado' AND metodo_pago='transferencia_pichincha' AND fecha_hora >= ?",
         (hoy_inicio,),
@@ -564,7 +591,7 @@ def cerrar_caja(data: dict):
 
 
 # ==========================================
-# RUTAS DE USUARIOS
+# RUTAS DE USUARIOS Y PERSONAL
 # ==========================================
 @app.get("/api/usuarios")
 def listar_usuarios():
@@ -603,9 +630,7 @@ def guardar_usuario(data: dict):
         return {"success": True}
     except sqlite3.IntegrityError:
         conn.close()
-        raise HTTPException(
-            status_code=400, detail="El nombre de usuario ya existe"
-        )
+        raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
 
 
 @app.delete("/api/usuarios/{u_id}")
