@@ -1,1 +1,569 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FastFood POS Pro Web</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+    body { background-color: #f3f4f6; color: #1f2937; }
+    
+    /* Header */
+    header { background-color: #1e293b; color: #fff; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .nav-tabs { display: flex; gap: 10px; }
+    .tab-btn { background: #334155; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .tab-btn.active { background: #2563eb; }
 
+    /* Layout general */
+    .container { padding: 20px; max-width: 1200px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    
+    /* Login */
+    #view-login { max-width: 400px; margin: 80px auto; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+    .btn { background: #2563eb; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+    .btn-secondary { background: #64748b; }
+    .btn-danger { background: #ef4444; }
+    .btn-success { background: #10b981; }
+
+    /* Menú / Categorías */
+    .cat-pills { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px; }
+    .cat-pill { background: #e2e8f0; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap; font-weight: 600; }
+    .cat-pill.active { background: #2563eb; color: #fff; }
+
+    /* Productos Grid */
+    .grid-productos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+    .prod-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; transition: 0.2s; }
+    .prod-card:hover { border-color: #2563eb; transform: translateY(-2px); }
+    .prod-card img { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 8px; }
+
+    /* Modales */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: #fff; padding: 25px; border-radius: 10px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+
+    /* Pedidos Tabla/Tarjetas */
+    .pedidos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+    .pedido-card { background: #fff; border-left: 5px solid #2563eb; border-radius: 6px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .nota-tag { font-size: 12px; color: #dc2626; background: #fee2e2; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+  <!-- Header / Barra Superior -->
+  <header id="main-header" style="display: none;">
+    <div>
+      <strong style="font-size: 18px;">FastFood POS Pro</strong>
+      <span id="user-display" style="font-size: 13px; color: #94a3b8; margin-left: 10px;"></span>
+    </div>
+    <div class="nav-tabs">
+      <button class="tab-btn" onclick="showTab('mesero')">🍽️ Tomar Pedido</button>
+      <button class="tab-btn" onclick="showTab('cocina')">👨‍🍳 Cocina</button>
+      <button class="tab-btn" onclick="showTab('caja')">💵 Caja y Pagos</button>
+      <button class="tab-btn" onclick="showTab('admin')">⚙️ Admin</button>
+      <button class="tab-btn btn-danger" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- VIEW: LOGIN -->
+    <div id="view-login" class="card">
+      <h2 style="text-align: center; margin-bottom: 20px;">Iniciar Sesión</h2>
+      <form onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Usuario</label>
+          <input type="text" id="login-user" required>
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="login-pass" required>
+        </div>
+        <button type="submit" class="btn">Ingresar</button>
+      </form>
+    </div>
+
+    <!-- VIEW: MESERO / POS -->
+    <div id="view-mesero" class="view-tab" style="display: none;">
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+        <div class="card">
+          <h3>Menú</h3>
+          <!-- Categorías Dinámicas -->
+          <div id="cat-pills-container" class="cat-pills"></div>
+          <!-- Grid de Productos -->
+          <div id="productos-grid" class="grid-productos"></div>
+        </div>
+
+        <div class="card">
+          <h3>Pedido Actual</h3>
+          <div class="form-group" style="margin-top: 10px;">
+            <label>Cliente / Mesa:</label>
+            <input type="text" id="cliente-nombre" placeholder="Ej: Mesa 4 / Juan">
+          </div>
+          <div id="carrito-list" style="min-height: 150px; border: 1px dashed #cbd5e1; padding: 10px; margin-bottom: 10px; border-radius: 6px;"></div>
+          <h4 style="text-align: right; margin-bottom: 15px;">Total: $<span id="carrito-total">0.00</span></h4>
+          <button class="btn btn-success" onclick="enviarPedido()">Enviar Pedido a Cocina</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: COCINA -->
+    <div id="view-cocina" class="view-tab" style="display: none;">
+      <div class="card">
+        <h3>Pedidos en Cocina</h3>
+        <button onclick="cargarPedidosCocina()" class="btn btn-secondary" style="width: auto; margin-bottom: 15px;">🔄 Actualizar</button>
+        <div id="cocina-pedidos-grid" class="pedidos-grid"></div>
+      </div>
+    </div>
+
+    <!-- VIEW: CAJA -->
+    <div id="view-caja" class="view-tab" style="display: none;">
+      <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3>Módulo de Caja</h3>
+          <span id="caja-estado-lbl">Consultando estado...</span>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-success" onclick="abrirModalResumen()">📊 Ver Arqueo en Vivo</button>
+          <button class="btn" onclick="abrirCajaPrompt()">Abrir Caja</button>
+          <button class="btn btn-danger" onclick="cerrarCajaPrompt()">Cerrar Caja</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Pedidos por Cobrar / Cobrados</h3>
+        <div id="caja-pedidos-grid" class="pedidos-grid"></div>
+      </div>
+    </div>
+
+    <!-- VIEW: ADMIN -->
+    <div id="view-admin" class="view-tab" style="display: none;">
+      <div class="card">
+        <h3>Administrar Categorías</h3>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+          <input type="text" id="nueva-cat-input" placeholder="Nueva categoría...">
+          <button class="btn" style="width: auto;" onclick="crearCategoria()">Agregar</button>
+        </div>
+        <div id="admin-cat-list" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Agregar Producto</h3>
+        <form onsubmit="guardarProductoAdmin(event)" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <input type="text" id="p-nombre" placeholder="Nombre" required>
+          <input type="number" step="0.01" id="p-precio" placeholder="Precio" required>
+          <select id="p-categoria"></select>
+          <input type="file" id="p-imagen">
+          <button type="submit" class="btn" style="grid-column: span 2;">Guardar Producto</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL COBRO Y FACTURA -->
+  <div id="modalCobro" class="modal">
+    <div class="modal-content">
+      <h2>💳 Cobrar Pedido</h2>
+      <input type="hidden" id="cobroPedidoId">
+
+      <div class="form-group" style="margin-top: 15px;">
+        <label>Forma de Pago:</label>
+        <select id="metodoPagoSelect">
+          <option value="efectivo">💵 Efectivo</option>
+          <option value="transferencia_loja">🏦 Transferencia Banco de Loja</option>
+          <option value="transferencia_pichincha">🏦 Transferencia Banco Pichincha</option>
+        </select>
+      </div>
+
+      <div style="background:#f8fafc; padding:10px; border-radius:6px; margin-bottom: 15px;">
+        <label style="cursor:pointer; font-weight:bold;">
+          <input type="checkbox" id="checkFactura" onchange="toggleFormFactura(this.checked)">
+          ¿Solicita Factura Fiscal?
+        </label>
+      </div>
+
+      <div id="seccionFactura" style="display:none; border-top:1px solid #cbd5e1; padding-top:10px;">
+        <div class="form-group">
+          <label>Cédula / RUC *</label>
+          <input type="text" id="factRuc">
+        </div>
+        <div class="form-group">
+          <label>Nombres / Razón Social *</label>
+          <input type="text" id="factRazonSocial">
+        </div>
+        <div class="form-group">
+          <label>Correo Electrónico *</label>
+          <input type="email" id="factEmail">
+        </div>
+        <div class="form-group">
+          <label>Dirección</label>
+          <input type="text" id="factDireccion">
+        </div>
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="text" id="factTelefono">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:20px;">
+        <button onclick="procesarCobro()" class="btn btn-success">Confirmar y Cobrar</button>
+        <button onclick="cerrarModal('modalCobro')" class="btn btn-danger">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ARQUEO DE CAJA EN VIVO -->
+  <div id="modalResumenVentas" class="modal">
+    <div class="modal-content">
+      <h2>📊 Arqueo y Ventas en Vivo</h2>
+      <hr style="margin: 10px 0;">
+      <p>Base Inicial: <strong id="resBase">$0.00</strong></p>
+      <p style="color: #10b981;">Ventas Efectivo: <strong id="resEfectivo">$0.00</strong></p>
+      <p style="color: #2563eb;">Ventas Banco Loja: <strong id="resLoja">$0.00</strong></p>
+      <p style="color: #d97706;">Ventas Banco Pichincha: <strong id="resPichincha">$0.00</strong></p>
+      <hr style="margin: 10px 0;">
+      <p style="font-size: 16px;"><strong>Total Ventas: <span id="resTotalVentas">$0.00</span></strong></p>
+      <p style="font-size: 18px; color: #059669; background: #ecfdf5; padding: 8px; border-radius: 6px; margin-top: 5px;">
+        <strong>Efectivo Físico en Caja: <span id="resEfectivoTotal">$0.00</span></strong>
+      </p>
+      <button onclick="cerrarModal('modalResumenVentas')" class="btn btn-secondary" style="margin-top: 15px;">Cerrar</button>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let categoriasGlobal = [];
+    let productosGlobal = [];
+    let carrito = [];
+    let catSeleccionada = 'Todas';
+
+    // Manejo de Sesión
+    async function handleLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('login-user').value;
+      const p = document.getElementById('login-pass').value;
+
+      const fd = new FormData();
+      fd.append('usuario', u);
+      fd.append('clave', p);
+
+      const res = await fetch('/api/login', { method: 'POST', body: fd });
+      if (res.ok) {
+        const data = await res.json();
+        currentUser = data;
+        localStorage.setItem('user', JSON.stringify(data));
+        iniciarApp();
+      } else {
+        alert('Credenciales incorrectas');
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('user');
+      location.reload();
+    }
+
+    function iniciarApp() {
+      const stored = localStorage.getItem('user');
+      if (stored) currentUser = JSON.parse(stored);
+
+      if (!currentUser) return;
+
+      document.getElementById('view-login').style.display = 'none';
+      document.getElementById('main-header').style.display = 'flex';
+      document.getElementById('user-display').innerText = `(${currentUser.nombre} - ${currentUser.rol})`;
+
+      cargarCategorias();
+      cargarProductos();
+      showTab('mesero');
+    }
+
+    function showTab(tab) {
+      document.querySelectorAll('.view-tab').forEach(el => el.style.display = 'none');
+      document.getElementById(`view-${tab}`).style.display = 'block';
+
+      if (tab === 'cocina') cargarPedidosCocina();
+      if (tab === 'caja') cargarCaja();
+    }
+
+    // Categorías y Productos
+    async function cargarCategorias() {
+      const res = await fetch('/api/categorias');
+      categoriasGlobal = await res.json();
+
+      // Pills en Mesero
+      const container = document.getElementById('cat-pills-container');
+      container.innerHTML = `<button class="cat-pill ${catSeleccionada==='Todas'?'active':''}" onclick="filtrarCat('Todas')">Todas</button>`;
+      
+      const adminList = document.getElementById('admin-cat-list');
+      adminList.innerHTML = '';
+
+      const selectProd = document.getElementById('p-categoria');
+      selectProd.innerHTML = '';
+
+      categoriasGlobal.forEach(c => {
+        container.innerHTML += `<button class="cat-pill ${catSeleccionada===c.nombre?'active':''}" onclick="filtrarCat('${c.nombre}')">${c.nombre}</button>`;
+        adminList.innerHTML += `<span style="background:#e2e8f0; padding:4px 8px; border-radius:4px;">${c.nombre} <b style="color:red;cursor:pointer" onclick="eliminarCat(${c.id})">×</b></span>`;
+        selectProd.innerHTML += `<option value="${c.nombre}">${c.nombre}</option>`;
+      });
+    }
+
+    async function crearCategoria() {
+      const nom = document.getElementById('nueva-cat-input').value;
+      if (!nom) return;
+      await fetch('/api/categorias', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({nombre: nom})
+      });
+      document.getElementById('nueva-cat-input').value = '';
+      cargarCategorias();
+    }
+
+    async function eliminarCat(id) {
+      await fetch(`/api/categorias/${id}`, { method: 'DELETE' });
+      cargarCategorias();
+    }
+
+    async function cargarProductos() {
+      const res = await fetch('/api/productos');
+      productosGlobal = await res.json();
+      renderProductos();
+    }
+
+    function filtrarCat(cat) {
+      catSeleccionada = cat;
+      cargarCategorias();
+      renderProductos();
+    }
+
+    function renderProductos() {
+      const grid = document.getElementById('productos-grid');
+      grid.innerHTML = '';
+      
+      const prods = catSeleccionada === 'Todas' ? productosGlobal : productosGlobal.filter(p => p.categoria === catSeleccionada);
+
+      prods.forEach(p => {
+        grid.innerHTML += `
+          <div class="prod-card" onclick="agregarAlCarrito('${p.nombre}', ${p.precio})">
+            ${p.imagen_path ? `<img src="${p.imagen_path}">` : '<div style="font-size:30px">🍔</div>'}
+            <strong>${p.nombre}</strong>
+            <p style="color:#059669; font-weight:bold;">$${p.precio.toFixed(2)}</p>
+          </div>
+        `;
+      });
+    }
+
+    // Carrito & Pedido Especial
+    function agregarAlCarrito(nombre, precio) {
+      const nota = prompt(`Nota especial para "${nombre}" (Ej: Sin salsa / Extra queso):`, "");
+      carrito.push({ nombre, precio, nota: nota ? nota.trim() : "" });
+      renderCarrito();
+    }
+
+    function renderCarrito() {
+      const list = document.getElementById('carrito-list');
+      list.innerHTML = '';
+      let total = 0;
+
+      carrito.forEach((item, idx) => {
+        total += item.precio;
+        list.innerHTML += `
+          <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+            <div>
+              <strong>${item.nombre}</strong> - $${item.precio.toFixed(2)}
+              ${item.nota ? `<br><span class="nota-tag">✏️ ${item.nota}</span>` : ''}
+            </div>
+            <button class="btn-danger" style="border:none; padding:2px 6px; border-radius:4px; cursor:pointer;" onclick="eliminarDelCarrito(${idx})">x</button>
+          </div>
+        `;
+      });
+
+      document.getElementById('carrito-total').innerText = total.toFixed(2);
+    }
+
+    function eliminarDelCarrito(idx) {
+      carrito.splice(idx, 1);
+      renderCarrito();
+    }
+
+    async function enviarPedido() {
+      const cliente = document.getElementById('cliente-nombre').value;
+      if (!cliente || carrito.length === 0) return alert('Completa el cliente y agrega ítems');
+
+      await fetch('/api/pedidos', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          cliente: cliente,
+          mesero: currentUser.nombre,
+          items: carrito
+        })
+      });
+
+      carrito = [];
+      document.getElementById('cliente-nombre').value = '';
+      renderCarrito();
+      alert('¡Pedido enviado a cocina!');
+    }
+
+    // Cocina
+    async function cargarPedidosCocina() {
+      const res = await fetch('/api/pedidos?filtro_fecha=Hoy');
+      const pedidos = await res.json();
+      const grid = document.getElementById('cocina-pedidos-grid');
+      grid.innerHTML = '';
+
+      pedidos.filter(p => p.estado === 'pendiente' || p.estado === 'preparando').forEach(p => {
+        let itemsHtml = p.items.map(i => `<li>${i.nombre} ${i.nota ? `<span class="nota-tag">${i.nota}</span>`:''}</li>`).join('');
+        grid.innerHTML += `
+          <div class="pedido-card">
+            <h4>#${p.id} - ${p.cliente}</h4>
+            <small>Mesero: ${p.mesero}</small>
+            <ul style="margin: 10px 0 10px 20px;">${itemsHtml}</ul>
+            <button class="btn btn-success" onclick="cambiarEstadoPedido(${p.id}, 'listo')">Marcar Listo</button>
+          </div>
+        `;
+      });
+    }
+
+    async function cambiarEstadoPedido(id, estado) {
+      await fetch(`/api/pedidos/${id}/estado`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({estado})
+      });
+      cargarPedidosCocina();
+    }
+
+    // Caja y Facturación
+    async function cargarCaja() {
+      const resEst = await fetch(`/api/caja/estado?cajero=${currentUser.usuario}`);
+      const st = await resEst.json();
+      document.getElementById('caja-estado-lbl').innerText = st.abierta ? `Caja Abierta (Base: $${st.base})` : 'Caja Cerrada';
+
+      const resPed = await fetch('/api/pedidos?filtro_fecha=Hoy');
+      const pedidos = await resPed.json();
+      const grid = document.getElementById('caja-pedidos-grid');
+      grid.innerHTML = '';
+
+      pedidos.forEach(p => {
+        grid.innerHTML += `
+          <div class="pedido-card" style="border-color:${p.estado==='cobrado'?'#10b981':'#2563eb'}">
+            <h4>#${p.id} - ${p.cliente} ($${p.total.toFixed(2)})</h4>
+            <p>Estado: <strong>${p.estado}</strong> | Pago: ${p.metodo_pago||'efectivo'}</p>
+            ${p.estado !== 'cobrado' ? `<button class="btn btn-success" style="margin-top:10px;" onclick="abrirModalCobro(${p.id})">Cobrar</button>` : '<span style="color:#10b981;font-weight:bold;">✓ Cobrado</span>'}
+          </div>
+        `;
+      });
+    }
+
+    function abrirModalCobro(id) {
+      document.getElementById('cobroPedidoId').value = id;
+      document.getElementById('modalCobro').style.display = 'flex';
+    }
+
+    function toggleFormFactura(v) {
+      document.getElementById('seccionFactura').style.display = v ? 'block' : 'none';
+    }
+
+    async function procesarCobro() {
+      const id = document.getElementById('cobroPedidoId').value;
+      const metodo = document.getElementById('metodoPagoSelect').value;
+      const reqFact = document.getElementById('checkFactura').checked;
+
+      const payload = {
+        metodo_pago: metodo,
+        requiere_factura: reqFact,
+        datos_factura: reqFact ? {
+          ruc_cedula: document.getElementById('factRuc').value,
+          razon_social: document.getElementById('factRazonSocial').value,
+          email: document.getElementById('factEmail').value,
+          direccion: document.getElementById('factDireccion').value,
+          telefono: document.getElementById('factTelefono').value
+        } : {}
+      };
+
+      const res = await fetch(`/api/pedidos/${id}/cobrar`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        cerrarModal('modalCobro');
+        cargarCaja();
+      } else {
+        alert('Error al registrar cobro');
+      }
+    }
+
+    async function abrirModalResumen() {
+      const res = await fetch(`/api/caja/resumen-ventas?cajero=${currentUser.usuario}`);
+      const d = await res.json();
+
+      document.getElementById('resBase').innerText = `$${d.base_inicial_caja.toFixed(2)}`;
+      document.getElementById('resEfectivo').innerText = `$${d.ventas_efectivo.toFixed(2)}`;
+      document.getElementById('resLoja').innerText = `$${d.ventas_banco_loja.toFixed(2)}`;
+      document.getElementById('resPichincha').innerText = `$${d.ventas_banco_pichincha.toFixed(2)}`;
+      document.getElementById('resTotalVentas').innerText = `$${d.total_ventas.toFixed(2)}`;
+      document.getElementById('resEfectivoTotal').innerText = `$${d.debe_haber_en_efectivo.toFixed(2)}`;
+
+      document.getElementById('modalResumenVentas').style.display = 'flex';
+    }
+
+    async function abrirCajaPrompt() {
+      const m = prompt('Monto base inicial en caja:', '0.00');
+      if (m !== null) {
+        await fetch('/api/caja/abrir', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({cajero: currentUser.usuario, monto: parseFloat(m)})
+        });
+        cargarCaja();
+      }
+    }
+
+    async function cerrarCajaPrompt() {
+      const resEst = await fetch(`/api/caja/estado?cajero=${currentUser.usuario}`);
+      const st = await resEst.json();
+      if (!st.abierta) return alert('No hay caja abierta');
+
+      if (confirm('¿Confirmar cierre de caja?')) {
+        const res = await fetch('/api/caja/cerrar', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({caja_id: st.id})
+        });
+        const data = await res.json();
+        alert(`Caja cerrada. Total Efectivo esperado: $${data.efectivo_esperado_en_caja}`);
+        cargarCaja();
+      }
+    }
+
+    async function guardarProductoAdmin(e) {
+      e.preventDefault();
+      const fd = new FormData();
+      fd.append('nombre', document.getElementById('p-nombre').value);
+      fd.append('precio', document.getElementById('p-precio').value);
+      fd.append('categoria', document.getElementById('p-categoria').value);
+      
+      const file = document.getElementById('p-imagen').files[0];
+      if (file) fd.append('imagen', file);
+
+      await fetch('/api/productos', { method: 'POST', body: fd });
+      alert('Producto guardado');
+      cargarProductos();
+    }
+
+    function cerrarModal(id) {
+      document.getElementById(id).style.display = 'none';
+    }
+
+    // Auto-iniciar al cargar
+    window.onload = iniciarApp;
+  </script>
+</body>
+</html>
