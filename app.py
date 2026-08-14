@@ -13,6 +13,7 @@ app = FastAPI(title="FastFood POS Pro Web")
 
 # Directorios de estáticos e imágenes
 os.makedirs("imagenes", exist_ok=True)
+os.makedirs("templates", exist_ok=True)
 app.mount("/imagenes", StaticFiles(directory="imagenes"), name="imagenes")
 
 DB_NAME = "restaurante.db"
@@ -25,7 +26,7 @@ def get_db():
 
 
 # ==========================================
-# INICIALIZACIÓN Y MIGRACIÓN DE LA BD
+# INICIALIZACIÓN Y MIGRACIÓN DE BASE DE DATOS
 # ==========================================
 def init_db():
     conn = get_db()
@@ -95,7 +96,7 @@ def init_db():
         )
     """)
 
-    # Migraciones en pedidos por si existía la base de datos previa
+    # Migraciones en pedidos
     try:
         cursor.execute("ALTER TABLE pedidos ADD COLUMN metodo_pago TEXT DEFAULT 'efectivo'")
     except sqlite3.OperationalError:
@@ -106,7 +107,7 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
-    # 5. Tabla de Facturas (Datos fiscales del cliente)
+    # 5. Tabla de Facturas
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS facturas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -281,7 +282,7 @@ def eliminar_producto(prod_id: int):
 @app.post("/api/pedidos")
 def crear_pedido(data: dict):
     cliente = data.get("cliente")
-    items = data.get("items")  # Soporta notas especiales: [{"nombre": "x", "precio": 5.0, "nota": "sin salsa"}]
+    items = data.get("items")
     mesero = data.get("mesero")
 
     if not cliente or not items:
@@ -351,10 +352,8 @@ def cambiar_estado_pedido(pedido_id: int, data: dict):
     return {"success": True}
 
 
-# COBRO CON MÉTODOS DE PAGO Y FACTURA FISCAL
 @app.put("/api/pedidos/{pedido_id}/cobrar")
 def cobrar_pedido(pedido_id: int, data: dict):
-    # metodo_pago: 'efectivo', 'transferencia_loja', 'transferencia_pichincha'
     metodo_pago = data.get("metodo_pago", "efectivo")
     requiere_factura = 1 if data.get("requiere_factura") else 0
     datos_factura = data.get("datos_factura", {})
@@ -375,7 +374,7 @@ def cobrar_pedido(pedido_id: int, data: dict):
         if not ruc_cedula or not razon_social or not email:
             conn.rollback()
             conn.close()
-            raise HTTPException(status_code=400, detail="Faltan datos obligatorios para la factura (Cédula/RUC, Nombre/Razón Social, Email)")
+            raise HTTPException(status_code=400, detail="Faltan datos requeridos para la factura")
 
         fecha_emision = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute(
@@ -447,7 +446,6 @@ def agregar_item_adicional(pedido_id: int, data: dict):
 # ==========================================
 # RUTAS DE RESUMEN DE VENTAS Y CAJA
 # ==========================================
-# RESUMEN EN TIEMPO REAL (Para cajero, admin y multiusuario)
 @app.get("/api/caja/resumen-ventas")
 def resumen_ventas_tiempo_real(cajero: Optional[str] = None):
     conn = get_db()
