@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⚡ FastFood POS Pro Web</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Librería jsPDF para generación automática de PDF -->
+    <!-- Librerías jsPDF y AutoTable para generación de PDF de Contabilidad -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
@@ -26,7 +26,7 @@
         </div>
     </header>
 
-    <!-- LOGIN SCREEN -->
+    <!-- PANTALLA LOGIN -->
     <div id="loginScreen" class="flex-1 flex items-center justify-center p-4">
         <div class="card p-8 w-full max-w-md shadow-xl text-center">
             <h2 class="text-2xl font-bold text-emerald-400 mb-1">⚡ FastFood POS</h2>
@@ -40,18 +40,18 @@
         </div>
     </div>
 
-    <!-- MAIN APP SCREEN -->
+    <!-- PANTALLA PRINCIPAL -->
     <div id="appScreen" class="flex-1 flex flex-col md:flex-row overflow-hidden hidden">
         
-        <!-- SIDEBAR NAVEGACIÓN -->
+        <!-- SIDEBAR DE NAVEGACIÓN -->
         <nav id="sidebar" class="w-full md:w-64 bg-slate-800 p-4 border-r border-slate-700 flex md:flex-col gap-2 overflow-x-auto">
-            <!-- Botones dinámicos según el rol -->
+            <!-- Menú dinámico -->
         </nav>
 
-        <!-- CONTENIDO PRINCIPAL -->
+        <!-- CONTENIDO -->
         <main class="flex-1 p-6 overflow-y-auto">
 
-            <!-- VISTA: TOMAR PEDIDO -->
+            <!-- VISTA: TOMAR PEDIDO (INCLUYE DATOS DE FACTURACIÓN) -->
             <section id="viewPedido" class="hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="lg:col-span-2 space-y-4">
@@ -62,35 +62,35 @@
                         <div id="catalogGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
                     </div>
 
-                    <!-- CARRITO & DATOS DE FACTURACIÓN -->
-                    <div class="card p-4 flex flex-col h-[680px]">
+                    <!-- CARRITO & FACTURA -->
+                    <div class="card p-4 flex flex-col h-[700px]">
                         <h3 class="font-bold text-lg mb-2">Orden del Cliente</h3>
                         <input type="text" id="orderClient" placeholder="Cliente / Mesa" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm mb-2">
                         
-                        <!-- DATOS OPCIONALES DE FACTURA -->
+                        <!-- FORMULARIO DE FACTURACIÓN OPCIONAL -->
                         <div class="bg-slate-900 p-3 rounded-lg mb-2 space-y-2">
                             <span class="text-xs font-bold text-emerald-400 block">📄 Datos de Facturación (Opcional)</span>
                             <div class="grid grid-cols-2 gap-2">
-                                <input type="text" id="factRuc" placeholder="RUC / Cédula" class="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs">
-                                <input type="text" id="factRazon" placeholder="Razón Social / Nombre" class="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs">
+                                <input type="text" id="factRuc" placeholder="RUC / Cédula" class="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white">
+                                <input type="text" id="factRazon" placeholder="Razón Social / Nombre" class="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white">
                             </div>
                             <div class="grid grid-cols-2 gap-2">
-                                <input type="text" id="factPhone" placeholder="Teléfono" class="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs">
-                                <input type="email" id="factEmail" placeholder="Correo Electrónico" class="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs">
+                                <input type="text" id="factPhone" placeholder="Teléfono" class="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white">
+                                <input type="email" id="factEmail" placeholder="Correo Electrónico" class="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white">
                             </div>
                         </div>
 
-                        <!-- SECCIÓN ITEM LIBRE -->
+                        <!-- ITEM ESPECIAL LIBRE -->
                         <div class="bg-slate-900 p-2.5 rounded-lg mb-2">
                             <span class="text-xs font-bold text-purple-400 block mb-1">✨ Pedido Especial / Libre</span>
                             <div class="flex gap-2 mb-1">
-                                <input type="text" id="customItemDesc" placeholder="Descripción" class="w-2/3 bg-slate-800 border border-slate-700 rounded p-1.5 text-xs">
-                                <input type="number" id="customItemPrice" placeholder="Precio ($)" class="w-1/3 bg-slate-800 border border-slate-700 rounded p-1.5 text-xs">
+                                <input type="text" id="customItemDesc" placeholder="Descripción" class="w-2/3 bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white">
+                                <input type="number" id="customItemPrice" placeholder="Precio ($)" class="w-1/3 bg-slate-800 border border-slate-700 rounded p-1.5 text-xs text-white">
                             </div>
                             <button onclick="addCustomItem()" class="w-full bg-purple-600 hover:bg-purple-700 text-xs font-bold p-1 rounded">Agregar Especial</button>
                         </div>
 
-                        <!-- LISTA ITEMS EN CARRITO -->
+                        <!-- LISTA DE ITEMS -->
                         <div id="cartItems" class="flex-1 overflow-y-auto space-y-1.5 mb-2 pr-1"></div>
 
                         <div class="border-t border-slate-700 pt-2 mt-auto">
@@ -116,7 +116,7 @@
                 <div id="kitchenOrders" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </section>
 
-            <!-- VISTA: REPORTES Y PDF CONTADORA -->
+            <!-- VISTA: REPORTES Y FACTURACIÓN CON PDF PARA CONTADORA -->
             <section id="viewReportes" class="hidden space-y-6">
                 <div class="flex justify-between items-center flex-wrap gap-4">
                     <h2 class="text-2xl font-bold text-emerald-400">📊 Reportes y Facturación</h2>
@@ -155,7 +155,7 @@
                                     <th class="p-2">ID</th>
                                     <th class="p-2">Fecha/Hora</th>
                                     <th class="p-2">Usuario</th>
-                                    <th class="p-2">Cliente / Raz. Social</th>
+                                    <th class="p-2">Cliente / Razón Social</th>
                                     <th class="p-2">RUC / Cédula</th>
                                     <th class="p-2">Método Pago</th>
                                     <th class="p-2">Total</th>
@@ -175,9 +175,9 @@
                 <div class="card p-6 space-y-4">
                     <h3 class="font-bold text-lg text-emerald-400">👥 Gestión de Usuarios y Personal</h3>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <input type="text" id="newFullName" placeholder="Nombre Completo" class="bg-slate-900 border border-slate-700 rounded p-2 text-sm">
-                        <input type="text" id="newUsername" placeholder="Usuario (Login)" class="bg-slate-900 border border-slate-700 rounded p-2 text-sm">
-                        <input type="password" id="newPassword" placeholder="Contraseña" class="bg-slate-900 border border-slate-700 rounded p-2 text-sm">
+                        <input type="text" id="newFullName" placeholder="Nombre Completo" class="bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                        <input type="text" id="newUsername" placeholder="Usuario (Login)" class="bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                        <input type="password" id="newPassword" placeholder="Contraseña" class="bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
                         <select id="newRole" class="bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
                             <option value="mesero">Mesero</option>
                             <option value="cocina">Cocina</option>
@@ -207,7 +207,7 @@
                     <div class="card p-4 space-y-3">
                         <h3 class="font-bold">📁 Secciones / Categorías</h3>
                         <div class="flex gap-2">
-                            <input type="text" id="newCatName" placeholder="Nueva Sección" class="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-sm">
+                            <input type="text" id="newCatName" placeholder="Nueva Sección" class="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
                             <button onclick="addCategory()" class="btn-primary px-4 py-2 rounded text-sm">Crear</button>
                         </div>
                         <ul id="catList" class="divide-y divide-slate-700 text-sm"></ul>
@@ -216,7 +216,7 @@
                     <div class="card p-4 space-y-3">
                         <h3 class="font-bold">🥫 Salsas y Términos</h3>
                         <div class="flex gap-2">
-                            <input type="text" id="newSauceName" placeholder="Ej: BBQ, Picante, Bien Cocido" class="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-sm">
+                            <input type="text" id="newSauceName" placeholder="Ej: BBQ, Picante, Bien Cocido" class="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
                             <button onclick="addSauce()" class="btn-primary px-4 py-2 rounded text-sm">Crear</button>
                         </div>
                         <ul id="sauceList" class="divide-y divide-slate-700 text-sm"></ul>
@@ -247,7 +247,7 @@
 
     <script>
         let db;
-        const request = indexedDB.open("FastFoodPOS", 3);
+        const request = indexedDB.open("FastFoodPOS", 4);
 
         request.onupgradeneeded = (e) => {
             db = e.target.result;
@@ -323,7 +323,6 @@
             document.getElementById("loginScreen").classList.remove("hidden");
         }
 
-        // ACCESOS DINÁMICOS POR ROL (MULTITAREA TIENE ACCESO A LISTA Y REPORTES)
         function setupNavigation() {
             const nav = document.getElementById("sidebar");
             nav.innerHTML = "";
@@ -336,7 +335,7 @@
                     { id: "Pedido", name: "📝 Tomar Pedido" },
                     { id: "Caja", name: "💰 Caja y Cobros" },
                     { id: "Cocina", name: "🔥 Cocina" },
-                    { id: "Reportes", name: "📋 Lista de Ventas" }
+                    { id: "Reportes", name: "📋 Lista de Ventas / Reportes" }
                 ],
                 "admin": [
                     { id: "Pedido", name: "📝 Tomar Pedido" },
@@ -612,7 +611,7 @@
             };
         }
 
-        // FUNCIÓN GENERAR Y DESCARGAR PDF PARA LA CONTADORA
+        // GENERACIÓN DE REPORTES PDF CONTABLE
         function exportContadoraPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -622,7 +621,6 @@
             tx.objectStore("pedidos").getAll().onsuccess = (e) => {
                 const all = e.target.result.filter(p => p.fecha_hora.startsWith(dateVal) && p.estado === "cobrado");
 
-                // Encabezado
                 doc.setFontSize(18);
                 doc.setTextColor(16, 185, 129);
                 doc.text("FastFood POS Pro - Reporte Fiscal de Ventas", 14, 15);
@@ -633,10 +631,9 @@
                 doc.text(`Generado por: ${currentUser.nombre} (${currentUser.rol.toUpperCase()})`, 14, 27);
 
                 const totalVentas = all.reduce((acc, p) => acc + p.total, 0);
-                const subtotalBase = totalVentas / 1.15; // Estimación base
+                const subtotalBase = totalVentas / 1.15;
                 const ivaMonto = totalVentas - subtotalBase;
 
-                // Cuadro Resumen Financiero
                 doc.autoTable({
                     startY: 32,
                     head: [['Métrica Fiscal', 'Valor USD ($)']],
@@ -650,7 +647,6 @@
                     headStyles: { fillColor: [30, 41, 59] }
                 });
 
-                // Tabla Detallada para Contabilidad
                 const tableData = all.map(p => [
                     `#${p.id}`,
                     p.fecha_hora.substring(11, 19),
