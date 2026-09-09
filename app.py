@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⚡ FastFood POS Pro Web</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Librerías jsPDF y AutoTable para generación de PDF de Contabilidad -->
+    <!-- Librerías jsPDF y AutoTable -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
@@ -26,7 +26,7 @@
         </div>
     </header>
 
-    <!-- PANTALLA LOGIN -->
+    <!-- LOGIN SCREEN -->
     <div id="loginScreen" class="flex-1 flex items-center justify-center p-4">
         <div class="card p-8 w-full max-w-md shadow-xl text-center">
             <h2 class="text-2xl font-bold text-emerald-400 mb-1">⚡ FastFood POS</h2>
@@ -40,18 +40,17 @@
         </div>
     </div>
 
-    <!-- PANTALLA PRINCIPAL -->
+    <!-- MAIN APP SCREEN -->
     <div id="appScreen" class="flex-1 flex flex-col md:flex-row overflow-hidden hidden">
         
-        <!-- SIDEBAR DE NAVEGACIÓN -->
+        <!-- SIDEBAR -->
         <nav id="sidebar" class="w-full md:w-64 bg-slate-800 p-4 border-r border-slate-700 flex md:flex-col gap-2 overflow-x-auto">
-            <!-- Menú dinámico -->
         </nav>
 
-        <!-- CONTENIDO -->
+        <!-- MAIN -->
         <main class="flex-1 p-6 overflow-y-auto">
 
-            <!-- VISTA: TOMAR PEDIDO (INCLUYE DATOS DE FACTURACIÓN) -->
+            <!-- VISTA: TOMAR PEDIDO -->
             <section id="viewPedido" class="hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="lg:col-span-2 space-y-4">
@@ -67,7 +66,7 @@
                         <h3 class="font-bold text-lg mb-2">Orden del Cliente</h3>
                         <input type="text" id="orderClient" placeholder="Cliente / Mesa" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm mb-2">
                         
-                        <!-- FORMULARIO DE FACTURACIÓN OPCIONAL -->
+                        <!-- DATOS OPCIONALES DE FACTURA -->
                         <div class="bg-slate-900 p-3 rounded-lg mb-2 space-y-2">
                             <span class="text-xs font-bold text-emerald-400 block">📄 Datos de Facturación (Opcional)</span>
                             <div class="grid grid-cols-2 gap-2">
@@ -90,7 +89,7 @@
                             <button onclick="addCustomItem()" class="w-full bg-purple-600 hover:bg-purple-700 text-xs font-bold p-1 rounded">Agregar Especial</button>
                         </div>
 
-                        <!-- LISTA DE ITEMS -->
+                        <!-- ITEMS EN CARRITO -->
                         <div id="cartItems" class="flex-1 overflow-y-auto space-y-1.5 mb-2 pr-1"></div>
 
                         <div class="border-t border-slate-700 pt-2 mt-auto">
@@ -116,7 +115,7 @@
                 <div id="kitchenOrders" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </section>
 
-            <!-- VISTA: REPORTES Y FACTURACIÓN CON PDF PARA CONTADORA -->
+            <!-- VISTA: REPORTES CON DATOS COMPLETOS DE CLIENTES -->
             <section id="viewReportes" class="hidden space-y-6">
                 <div class="flex justify-between items-center flex-wrap gap-4">
                     <h2 class="text-2xl font-bold text-emerald-400">📊 Reportes y Facturación</h2>
@@ -147,7 +146,7 @@
                 </div>
 
                 <div class="card p-4">
-                    <h3 class="font-bold mb-3">📋 Historial de Ventas y Datos Fiscales</h3>
+                    <h3 class="font-bold mb-3">📋 Historial de Ventas con Datos de Cliente y Pedido</h3>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm">
                             <thead class="bg-slate-700 text-slate-300">
@@ -157,6 +156,9 @@
                                     <th class="p-2">Usuario</th>
                                     <th class="p-2">Cliente / Razón Social</th>
                                     <th class="p-2">RUC / Cédula</th>
+                                    <th class="p-2">Teléfono</th>
+                                    <th class="p-2">Correo Electrónico</th>
+                                    <th class="p-2 w-1/4">Detalle del Pedido</th>
                                     <th class="p-2">Método Pago</th>
                                     <th class="p-2">Total</th>
                                     <th class="p-2">Estado</th>
@@ -478,8 +480,8 @@
                 cliente: client,
                 fact_ruc: ruc || "Consumidor Final",
                 fact_razon: razon || client,
-                fact_phone: phone,
-                fact_email: email,
+                fact_phone: phone || "N/A",
+                fact_email: email || "N/A",
                 items: JSON.stringify(cart),
                 total: total,
                 estado: "pendiente",
@@ -496,7 +498,7 @@
                 document.getElementById("factPhone").value = "";
                 document.getElementById("factEmail").value = "";
                 renderCart();
-                alert("¡Pedido y Datos de Factura registrados con éxito!");
+                alert("¡Pedido registrado exitosamente!");
             };
         }
 
@@ -511,9 +513,11 @@
                             <span class="font-bold text-sky-400">Orden #${p.id} - ${p.cliente}</span>
                             <span class="text-xs text-slate-400">Mesero: ${p.mesero}</span>
                         </div>
-                        <div class="text-xs text-slate-400 bg-slate-900 p-2 rounded">
-                            <div>RUC/CI: <span class="text-white">${p.fact_ruc || 'N/A'}</span></div>
-                            <div>Razón Social: <span class="text-white">${p.fact_razon || 'N/A'}</span></div>
+                        <div class="text-xs text-slate-400 bg-slate-900 p-2 rounded space-y-0.5">
+                            <div>Razón Social: <span class="text-white font-medium">${p.fact_razon || p.cliente}</span></div>
+                            <div>RUC/CI: <span class="text-white font-medium">${p.fact_ruc || 'N/A'}</span></div>
+                            <div>Telf: <span class="text-white font-medium">${p.fact_phone || 'N/A'}</span></div>
+                            <div>Email: <span class="text-white font-medium">${p.fact_email || 'N/A'}</span></div>
                         </div>
                         <div class="text-2xl font-bold text-emerald-400">$${p.total.toFixed(2)}</div>
                         <select id="payMethod_${p.id}" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
@@ -571,6 +575,7 @@
             };
         }
 
+        // MOSTRAR TODOS LOS DATOS DEL CLIENTE EN LA TABLA DE REPORTES
         function renderReports() {
             const dateVal = document.getElementById("reportDate").value || new Date().toISOString().substring(0, 10);
             document.getElementById("reportDate").value = dateVal;
@@ -596,46 +601,53 @@
                     </div>
                 `).join("") || `<div class="text-xs text-slate-500">Sin ventas hoy.</div>`;
 
-                document.getElementById("reportTableBody").innerHTML = all.map(p => `
-                    <tr>
-                        <td class="p-2">#${p.id}</td>
-                        <td class="p-2">${p.fecha_hora}</td>
-                        <td class="p-2">${p.mesero}</td>
-                        <td class="p-2">${p.fact_razon || p.cliente}</td>
-                        <td class="p-2 text-slate-400">${p.fact_ruc || 'N/A'}</td>
-                        <td class="p-2 text-sky-400">${p.metodo_pago}</td>
-                        <td class="p-2 text-emerald-400 font-bold">$${p.total.toFixed(2)}</td>
-                        <td class="p-2 font-bold ${p.estado === 'cobrado' ? 'text-emerald-400' : 'text-sky-400'}">${p.estado.toUpperCase()}</td>
-                    </tr>
-                `).join("");
+                document.getElementById("reportTableBody").innerHTML = all.map(p => {
+                    const parsedItems = JSON.parse(p.items || "[]");
+                    const itemsFormatted = parsedItems.map(i => `<div class="text-xs">• ${i.nombre} <span class="text-emerald-400 font-semibold">($${i.precio.toFixed(2)})</span></div>`).join("");
+
+                    return `
+                        <tr>
+                            <td class="p-2 font-bold">#${p.id}</td>
+                            <td class="p-2 text-xs">${p.fecha_hora}</td>
+                            <td class="p-2">${p.mesero}</td>
+                            <td class="p-2 font-medium">${p.fact_razon || p.cliente}</td>
+                            <td class="p-2 text-slate-300 font-mono">${p.fact_ruc || 'N/A'}</td>
+                            <td class="p-2 text-slate-300">${p.fact_phone || 'N/A'}</td>
+                            <td class="p-2 text-slate-300 text-xs">${p.fact_email || 'N/A'}</td>
+                            <td class="p-2 bg-slate-900/50 rounded my-1">${itemsFormatted}</td>
+                            <td class="p-2 text-sky-400">${p.metodo_pago}</td>
+                            <td class="p-2 text-emerald-400 font-bold">$${p.total.toFixed(2)}</td>
+                            <td class="p-2 font-bold ${p.estado === 'cobrado' ? 'text-emerald-400' : 'text-sky-400'}">${p.estado.toUpperCase()}</td>
+                        </tr>
+                    `;
+                }).join("");
             };
         }
 
-        // GENERACIÓN DE REPORTES PDF CONTABLE
+        // GENERAR PDF PARA CONTADORA CON FICHA DE CLIENTE COMPLETA
         function exportContadoraPDF() {
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
+            const doc = new jsPDF('landscape'); // Orientación horizontal para mayor espacio
             const dateVal = document.getElementById("reportDate").value || new Date().toISOString().substring(0, 10);
 
             const tx = db.transaction("pedidos", "readonly");
             tx.objectStore("pedidos").getAll().onsuccess = (e) => {
                 const all = e.target.result.filter(p => p.fecha_hora.startsWith(dateVal) && p.estado === "cobrado");
 
-                doc.setFontSize(18);
+                doc.setFontSize(16);
                 doc.setTextColor(16, 185, 129);
-                doc.text("FastFood POS Pro - Reporte Fiscal de Ventas", 14, 15);
+                doc.text("FastFood POS Pro - Reporte Fiscal de Ventas y Facturación", 14, 15);
                 
-                doc.setFontSize(10);
+                doc.setFontSize(9);
                 doc.setTextColor(100);
-                doc.text(`Fecha del Reporte: ${dateVal}`, 14, 22);
-                doc.text(`Generado por: ${currentUser.nombre} (${currentUser.rol.toUpperCase()})`, 14, 27);
+                doc.text(`Fecha del Reporte: ${dateVal} | Generado por: ${currentUser.nombre} (${currentUser.rol.toUpperCase()})`, 14, 22);
 
                 const totalVentas = all.reduce((acc, p) => acc + p.total, 0);
                 const subtotalBase = totalVentas / 1.15;
                 const ivaMonto = totalVentas - subtotalBase;
 
                 doc.autoTable({
-                    startY: 32,
+                    startY: 26,
                     head: [['Métrica Fiscal', 'Valor USD ($)']],
                     body: [
                         ['Total Transacciones Cobradas', `${all.length}`],
@@ -644,27 +656,37 @@
                         ['TOTAL RECAUDADO', `$${totalVentas.toFixed(2)}`]
                     ],
                     theme: 'grid',
-                    headStyles: { fillColor: [30, 41, 59] }
+                    headStyles: { fillColor: [30, 41, 59] },
+                    tableWidth: 100
                 });
 
-                const tableData = all.map(p => [
-                    `#${p.id}`,
-                    p.fecha_hora.substring(11, 19),
-                    p.fact_ruc || 'Consumidor Final',
-                    p.fact_razon || p.cliente,
-                    p.metodo_pago,
-                    `$${p.total.toFixed(2)}`
-                ]);
+                const tableData = all.map(p => {
+                    const parsedItems = JSON.parse(p.items || "[]");
+                    const itemsStr = parsedItems.map(i => `${i.nombre} ($${i.precio.toFixed(2)})`).join("\n");
+                    return [
+                        `#${p.id}`,
+                        p.fecha_hora.substring(11, 19),
+                        p.fact_razon || p.cliente,
+                        p.fact_ruc || 'Consumidor Final',
+                        p.fact_phone || 'N/A',
+                        p.fact_email || 'N/A',
+                        itemsStr,
+                        p.metodo_pago,
+                        `$${p.total.toFixed(2)}`
+                    ];
+                });
 
                 doc.autoTable({
-                    startY: doc.lastAutoTable.finalY + 10,
-                    head: [['ID', 'Hora', 'RUC / Cédula', 'Razón Social / Cliente', 'Forma Pago', 'Total']],
+                    startY: doc.lastAutoTable.finalY + 8,
+                    head: [['ID', 'Hora', 'Razón Social / Cliente', 'RUC / Cédula', 'Teléfono', 'Correo Electrónico', 'Detalle de Productos / Pedido', 'Forma Pago', 'Total']],
                     body: tableData,
                     theme: 'striped',
-                    headStyles: { fillColor: [16, 185, 129] }
+                    headStyles: { fillColor: [16, 185, 129] },
+                    styles: { fontSize: 8 },
+                    columnStyles: { 6: { cellWidth: 70 } }
                 });
 
-                doc.save(`Reporte_Contadora_FastFood_${dateVal}.pdf`);
+                doc.save(`Reporte_Fiscal_Contadora_${dateVal}.pdf`);
             };
         }
 
